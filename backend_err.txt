@@ -1,0 +1,31 @@
+Watching for file changes with StatReloader
+[12/May/2026 16:16:00] "GET /api/projects/ HTTP/1.1" 200 1411
+[12/May/2026 16:16:00,697] - Broken pipe from ('127.0.0.1', 63188)
+[12/May/2026 16:16:34] "GET /api/projects/ HTTP/1.1" 200 1411
+[12/May/2026 16:16:35,126] - Broken pipe from ('127.0.0.1', 64758)
+[12/May/2026 16:22:16] "GET /api/projects/dashboard_stats/ HTTP/1.1" 200 758
+[12/May/2026 16:22:16] "GET /api/projects/dashboard_stats/ HTTP/1.1" 200 758
+[12/May/2026 16:22:20] "GET /api/projects/ HTTP/1.1" 200 1411
+[12/May/2026 16:22:21] "GET /api/projects/ HTTP/1.1" 200 1411
+[12/May/2026 16:22:21] "GET /api/plots/ HTTP/1.1" 200 32257
+[12/May/2026 16:22:21] "GET /api/projects/ HTTP/1.1" 200 1411
+[12/May/2026 16:22:22] "GET /api/plots/ HTTP/1.1" 200 32257
+[12/May/2026 16:22:22] "GET /api/projects/ HTTP/1.1" 200 1411
+[12/May/2026 16:22:22] "GET /api/plots/ HTTP/1.1" 200 32257
+[12/May/2026 16:22:22] "GET /api/plots/ HTTP/1.1" 200 32257
+[12/May/2026 16:22:23] "GET /api/projects/dashboard_stats/ HTTP/1.1" 200 758
+[12/May/2026 16:22:23] "GET /api/projects/dashboard_stats/ HTTP/1.1" 200 758
+[12/May/2026 16:22:25] "GET /api/plots/ HTTP/1.1" 200 32257
+[12/May/2026 16:22:25] "GET /api/projects/ HTTP/1.1" 200 1411
+[12/May/2026 16:22:25] "GET /api/plots/ HTTP/1.1" 200 32257
+[12/May/2026 16:22:25] "GET /api/projects/ HTTP/1.1" 200 1411
+[12/May/2026 16:22:25] "GET /api/plots/ HTTP/1.1" 200 32257
+[12/May/2026 16:22:26] "GET /api/plots/ HTTP/1.1" 200 32257
+[12/May/2026 16:22:26] "GET /api/projects/ HTTP/1.1" 200 1411
+[12/May/2026 16:22:26] "GET /api/projects/ HTTP/1.1" 200 1411
+[12/May/2026 16:22:27] "GET /api/projects/dashboard_stats/ HTTP/1.1" 200 758
+[12/May/2026 16:22:27] "GET /api/projects/dashboard_stats/ HTTP/1.1" 200 758
+[12/May/2026 16:22:29] "GET /api/projects/dashboard_stats/ HTTP/1.1" 200 758
+[12/May/2026 16:22:29] "GET /api/projects/dashboard_stats/ HTTP/1.1" 200 758
+[12/May/2026 16:22:49] "GET /api/projects/dashboard_stats/ HTTP/1.1" 200 758
+[12/May/2026 16:22:49] "GET /api/projects/dashboard_stats/ HTTP/1.1" 200 758

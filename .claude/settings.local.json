@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls /c/Users/georg/AppData/Local/ | grep -i python; ls /c/Users/georg/AppData/Local/Programs/ | grep -i python 2>/dev/null)",
+      "PowerShell(New-Item -ItemType File -Force \"D:\\\\i5nexus\\\\backend\\\\feedback\\\\management\\\\__init__.py\")",
+      "PowerShell(New-Item -ItemType File -Force \"D:\\\\i5nexus\\\\backend\\\\feedback\\\\management\\\\commands\\\\__init__.py\")"
+    ]
+  }
+}
