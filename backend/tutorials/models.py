@@ -1,21 +1,34 @@
-import os
+import re
 from django.db import models
 from django.conf import settings
 
 
-class Tutorial(models.Model):
-    TYPE_CHOICES = [('video','Video'), ('document','Document'),
-                    ('image','Image'), ('other','Other')]
+def extract_video_id(url):
+    """Extract YouTube video ID from any common URL format."""
+    patterns = [
+        r'youtu\.be/([^?&/\s]+)',
+        r'youtube\.com/watch\?v=([^&/\s]+)',
+        r'youtube\.com/embed/([^?&/\s]+)',
+        r'youtube\.com/v/([^?&/\s]+)',
+        r'youtube\.com/shorts/([^?&/\s]+)',
+    ]
+    for pattern in patterns:
+        m = re.search(pattern, url)
+        if m:
+            return m.group(1)
+    return None
 
-    title        = models.CharField(max_length=255)
-    description  = models.TextField(blank=True)
-    file_type    = models.CharField(max_length=20, choices=TYPE_CHOICES, default='document')
-    file         = models.FileField(upload_to='tutorials/')
-    thumbnail    = models.ImageField(upload_to='tutorials/thumbs/', null=True, blank=True)
-    file_size    = models.PositiveIntegerField(default=0)   # bytes
-    uploaded_by  = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
-    uploaded_at  = models.DateTimeField(auto_now_add=True)
-    views        = models.PositiveIntegerField(default=0)
+
+class Tutorial(models.Model):
+    title       = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    youtube_url = models.URLField(max_length=500)
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, related_name='tutorials',
+    )
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    views       = models.PositiveIntegerField(default=0)
 
     class Meta:
         ordering = ['-uploaded_at']
@@ -24,10 +37,5 @@ class Tutorial(models.Model):
         return self.title
 
     @property
-    def original_filename(self):
-        return os.path.basename(self.file.name) if self.file else ''
-
-    @property
-    def file_extension(self):
-        _, ext = os.path.splitext(self.original_filename)
-        return ext.lower().lstrip('.')
+    def video_id(self):
+        return extract_video_id(self.youtube_url)

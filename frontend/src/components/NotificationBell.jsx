@@ -6,20 +6,36 @@ import { useAuth } from '../contexts/AuthContext';
 import { initPushNotifications } from '../utils/push';
 
 const TYPE_META = {
-  leave:    { icon: '📅', color: 'from-blue-500 to-blue-600',    bg: 'bg-blue-50 dark:bg-blue-900/30',    border: 'border-blue-100 dark:border-blue-800',    label: 'Leave' },
-  feedback: { icon: '💬', color: 'from-purple-500 to-purple-600', bg: 'bg-purple-50 dark:bg-purple-900/30', border: 'border-purple-100 dark:border-purple-800', label: 'Feedback' },
+  leave:    { icon: '📅', color: 'from-blue-500 to-blue-600',     bg: 'bg-blue-50 dark:bg-blue-900/30',     border: 'border-blue-100 dark:border-blue-800',     label: 'Leave' },
+  feedback: { icon: '💬', color: 'from-purple-500 to-purple-600', bg: 'bg-purple-50 dark:bg-purple-900/30', border: 'border-purple-100 dark:border-purple-800',  label: 'Feedback' },
   todo:     { icon: '✅', color: 'from-emerald-500 to-emerald-600',bg: 'bg-emerald-50 dark:bg-emerald-900/30',border: 'border-emerald-100 dark:border-emerald-800',label: 'Task' },
-  offer:    { icon: '🎯', color: 'from-orange-500 to-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/30', border: 'border-orange-100 dark:border-orange-800', label: 'Offer' },
-  report:   { icon: '📄', color: 'from-gray-500 to-gray-600',     bg: 'bg-gray-50 dark:bg-gray-800',        border: 'border-gray-100 dark:border-gray-700',    label: 'Report' },
-  general:  { icon: '🔔', color: 'from-primary to-primary-light', bg: 'bg-gray-50 dark:bg-gray-800',        border: 'border-gray-100 dark:border-gray-700',    label: 'Notice' },
+  offer:    { icon: '🎯', color: 'from-orange-500 to-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/30', border: 'border-orange-100 dark:border-orange-800',  label: 'Offer' },
+  report:   { icon: '📄', color: 'from-gray-500 to-gray-600',     bg: 'bg-gray-50 dark:bg-gray-800',        border: 'border-gray-100 dark:border-gray-700',     label: 'Report' },
+  booking:  { icon: '🏠', color: 'from-amber-500 to-amber-600',   bg: 'bg-amber-50 dark:bg-amber-900/30',   border: 'border-amber-100 dark:border-amber-800',   label: 'Booking' },
+  tutorial: { icon: '🎬', color: 'from-red-500 to-red-600',       bg: 'bg-red-50 dark:bg-red-900/30',       border: 'border-red-100 dark:border-red-800',       label: 'Tutorial' },
+  general:  { icon: '🔔', color: 'from-primary to-primary-light', bg: 'bg-gray-50 dark:bg-gray-800',        border: 'border-gray-100 dark:border-gray-700',     label: 'Notice' },
 };
 
 function getRoute(notif_type, role) {
   const map = {
-    admin: { leave: '/admin/leaves', feedback: '/admin/feedback', todo: '/admin/todos', report: '/admin/reports', offer: '/admin/offers', general: '/admin' },
-    staff: { leave: '/staff/leaves', feedback: '/staff/feedback', todo: '/staff/todos', report: '/staff/reports', offer: '/staff', general: '/staff' },
+    super_admin: {
+      leave: '/superadmin/leaves', feedback: '/superadmin', todo: '/superadmin',
+      report: '/superadmin/reports', offer: '/superadmin',
+      booking: '/superadmin/projects', tutorial: '/superadmin/tutorials', general: '/superadmin',
+    },
+    admin: {
+      leave: '/admin/leaves', feedback: '/admin/feedback', todo: '/admin/todos',
+      report: '/admin/reports', offer: '/admin/offers',
+      booking: '/admin/projects', tutorial: '/admin/tutorials', general: '/admin',
+    },
+    staff: {
+      leave: '/staff/leaves', feedback: '/staff/feedback', todo: '/staff/todos',
+      report: '/staff/reports', offer: '/staff',
+      booking: '/staff/projects', tutorial: '/staff/tutorials', general: '/staff',
+    },
   };
-  return map[role]?.[notif_type] || (role === 'admin' ? '/admin' : '/staff');
+  const fallback = role === 'super_admin' ? '/superadmin' : role === 'admin' ? '/admin' : '/staff';
+  return map[role]?.[notif_type] || fallback;
 }
 
 function fmt(dt) {

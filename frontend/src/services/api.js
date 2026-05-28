@@ -68,6 +68,13 @@ export const plotsApi = {
   update: (id, data)   => api.patch(`/plots/${id}/`, data),
   delete: (id)         => api.delete(`/plots/${id}/`),
 };
+export const bookingRequestsApi = {
+  list:    (params)       => api.get('/booking-requests/', { params }),
+  create:  (data)         => api.post('/booking-requests/', data),
+  approve: (id, notes='') => api.post(`/booking-requests/${id}/approve/`, { admin_notes: notes }),
+  reject:  (id, notes='') => api.post(`/booking-requests/${id}/reject/`,  { admin_notes: notes }),
+  hold:    (id, notes='') => api.post(`/booking-requests/${id}/hold/`,    { admin_notes: notes }),
+};
 export const attendanceApi = {
   list: (params) => api.get('/attendance/', { params }),
   todayStatus: () => api.get('/attendance/today_status/'),
@@ -134,15 +141,11 @@ export const todosApi = {
   toggleComplete: (id) => api.post(`/todos/${id}/toggle_complete/`),
 };
 export const tutorialsApi = {
-  list:     ()          => api.get('/tutorials/'),
-  upload:   (data)      => api.post('/tutorials/', data),
-  delete:   (id)        => api.delete(`/tutorials/${id}/`),
-  view:     (id)        => api.post(`/tutorials/${id}/view/`),
-  limits:   ()          => api.get('/tutorials/limits/'),
-  // Authenticated file download (Content-Disposition: attachment)
-  download: (id)        => api.get(`/tutorials/${id}/download/`, { responseType: 'blob' }),
-  // Authenticated inline stream URL (for iframes, video src, etc.)
-  streamUrl:(id)        => `${api.defaults.baseURL}/tutorials/${id}/stream/`,
+  list:   (params) => api.get('/tutorials/', { params }),
+  create: (data)   => api.post('/tutorials/', data),
+  update: (id, data) => api.patch(`/tutorials/${id}/`, data),
+  delete: (id)     => api.delete(`/tutorials/${id}/`),
+  view:   (id)     => api.post(`/tutorials/${id}/view/`),
 };
 export const achievementsApi = {
   leaderboard:  (params)     => api.get('/achievements/leaderboard/', { params }),

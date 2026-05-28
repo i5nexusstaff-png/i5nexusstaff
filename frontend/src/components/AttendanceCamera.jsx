@@ -286,7 +286,7 @@ export default function AttendanceCamera({
         setGpsState('denied');
         setGeoFence(checkGeofence(null, null, officeLocations));
       },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 },
     );
   }, []); // eslint-disable-line
 
@@ -338,6 +338,10 @@ export default function AttendanceCamera({
 
   // In geofencing mode, block the shutter when outside and GPS is acquired
   const outsideAndBlocked = isGeofencing && geoFence && !geoFence.allowed && gpsState === 'found';
+
+  // In geofencing mode, also block while GPS is still being acquired (no coords yet)
+  // Without this, a fast tap sends null lat/lng → backend rejects with "GPS required"
+  const waitingForGps = isGeofencing && gpsState === 'acquiring';
 
   // Prefer the most readable address; only fall back to coords when geocoding hasn't resolved yet
   const liveAddr = address.fullAddr || address.short || address.cityLine
@@ -519,21 +523,23 @@ export default function AttendanceCamera({
             {/* Shutter button */}
             <button
               onClick={capture}
-              disabled={camStep !== 'ready' || outsideAndBlocked}
+              disabled={camStep !== 'ready' || outsideAndBlocked || waitingForGps}
               className="relative w-[76px] h-[76px] rounded-full flex items-center justify-center
                          disabled:opacity-35 transition-transform active:scale-90"
               style={{
-                border: `3px solid ${isGpsTagged ? 'rgba(251,191,36,0.5)' : 'rgba(255,255,255,0.50)'}`,
+                border: `3px solid ${isGpsTagged ? 'rgba(251,191,36,0.5)' : waitingForGps ? 'rgba(59,130,246,0.5)' : 'rgba(255,255,255,0.50)'}`,
                 background: 'rgba(255,255,255,0.10)',
               }}>
               <div className={`w-[58px] h-[58px] rounded-full shadow-2xl flex items-center justify-center
-                ${outsideAndBlocked ? 'bg-gray-400' : 'bg-white'}`}>
-                <Camera size={26} className="text-gray-800" />
+                ${outsideAndBlocked || waitingForGps ? 'bg-gray-400' : 'bg-white'}`}>
+                {waitingForGps
+                  ? <Loader2 size={24} className="text-white animate-spin" />
+                  : <Camera size={26} className="text-gray-800" />}
               </div>
             </button>
             <p className={`text-[11px] mt-3 tracking-widest
-              ${outsideAndBlocked ? 'text-red-400' : isGpsTagged ? 'text-amber-400/70' : 'text-white/35'}`}>
-              {outsideAndBlocked ? 'MOVE CLOSER TO OFFICE' : 'TAP TO CAPTURE'}
+              ${outsideAndBlocked ? 'text-red-400' : waitingForGps ? 'text-blue-300/80' : isGpsTagged ? 'text-amber-400/70' : 'text-white/35'}`}>
+              {outsideAndBlocked ? 'MOVE CLOSER TO OFFICE' : waitingForGps ? 'ACQUIRING GPS…' : 'TAP TO CAPTURE'}
             </p>
           </div>
         )}

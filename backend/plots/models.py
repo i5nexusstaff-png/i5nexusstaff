@@ -35,3 +35,45 @@ class Plot(models.Model):
         if self.rate_per_sqft and self.area_sqft and not self.total_cost:
             self.total_cost = self.rate_per_sqft * self.area_sqft
         super().save(*args, **kwargs)
+
+
+class BookingRequest(models.Model):
+    REQUEST_STATUS = [
+        ('pending',  'Pending'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+        ('on_hold',  'On Hold'),
+    ]
+
+    REQUESTED_STATUS_CHOICES = [
+        ('blocked', 'Blocked'),
+        ('booked',  'Booked'),
+        ('sold',    'Sold'),
+    ]
+
+    plot          = models.ForeignKey(Plot, on_delete=models.CASCADE, related_name='booking_requests')
+    requested_status = models.CharField(
+        max_length=20,
+        choices=REQUESTED_STATUS_CHOICES,
+        default='blocked',
+    )
+    requested_by  = models.ForeignKey(
+        'accounts.User', on_delete=models.CASCADE, related_name='booking_requests'
+    )
+    reviewed_by   = models.ForeignKey(
+        'accounts.User', null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='reviewed_bookings'
+    )
+    status         = models.CharField(max_length=20, choices=REQUEST_STATUS, default='pending')
+    customer_name  = models.CharField(max_length=200, blank=True)
+    customer_phone = models.CharField(max_length=20, blank=True)
+    notes          = models.TextField(blank=True)
+    admin_notes    = models.TextField(blank=True)
+    created_at     = models.DateTimeField(auto_now_add=True)
+    updated_at     = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'BookingRequest #{self.id} – {self.plot} ({self.status})'

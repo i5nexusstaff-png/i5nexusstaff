@@ -4,8 +4,10 @@ from django.conf import settings
 
 class Notification(models.Model):
     TYPE_CHOICES = [
-        ('leave', 'Leave'), ('feedback', 'Feedback'), ('todo', 'Todo'),
-        ('offer', 'Offer'), ('report', 'Report'), ('general', 'General'),
+        ('leave',    'Leave'),    ('feedback', 'Feedback'), ('todo',     'Todo'),
+        ('offer',    'Offer'),    ('report',   'Report'),   ('general',  'General'),
+        ('booking',  'Booking Request'),
+        ('tutorial', 'Tutorial'),
     ]
     recipient = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='notifications')
     title = models.CharField(max_length=200)

@@ -62,15 +62,35 @@ def create_and_push(recipient, title, message, notif_type='general', url=None):
     if url is None:
         role = getattr(recipient, 'role', 'staff')
         route_map = {
+            'super_admin': {
+                'leave':    '/superadmin/leaves',
+                'feedback': '/superadmin',
+                'todo':     '/superadmin',
+                'report':   '/superadmin/reports',
+                'offer':    '/superadmin',
+                'booking':  '/superadmin/projects',
+                'tutorial': '/superadmin/tutorials',
+                'general':  '/superadmin',
+            },
             'admin': {
-                'leave': '/admin/leaves', 'feedback': '/admin/feedback',
-                'todo': '/admin/todos', 'report': '/admin/reports',
-                'offer': '/admin/offers', 'general': '/admin',
+                'leave':    '/admin/leaves',
+                'feedback': '/admin/feedback',
+                'todo':     '/admin/todos',
+                'report':   '/admin/reports',
+                'offer':    '/admin/offers',
+                'booking':  '/admin/projects',
+                'tutorial': '/admin/tutorials',
+                'general':  '/admin',
             },
             'staff': {
-                'leave': '/staff/leaves', 'feedback': '/staff/feedback',
-                'todo': '/staff/todos', 'report': '/staff/reports',
-                'offer': '/staff', 'general': '/staff',
+                'leave':    '/staff/leaves',
+                'feedback': '/staff/feedback',
+                'todo':     '/staff/todos',
+                'report':   '/staff/reports',
+                'offer':    '/staff',
+                'booking':  '/staff/projects',
+                'tutorial': '/staff/tutorials',
+                'general':  '/staff',
             },
         }
         url = route_map.get(role, {}).get(notif_type, '/')

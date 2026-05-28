@@ -1,8 +1,7 @@
 /**
  * GeofenceMap — Google Maps JavaScript API
  * ─ Multiple office location pins with radius circles
- * ─ Google Places Autocomplete search bar
- * ─ "You are here" blue dot with Google reverse-geocoded address
+ * ─ "You are here" blue dot + accuracy radius circle
  * ─ Add / edit / delete / toggle-active office locations
  * ─ Road / Satellite / Hybrid map types
  * ─ Draggable markers that update position on dragend
@@ -12,60 +11,12 @@ import { loadGoogleMaps, reverseGeocodeGoogle } from '../utils/googleMaps';
 import {
   MapPin, Navigation, Plus, CheckCircle,
   Pencil, ToggleRight, ToggleLeft, Trash2,
-  LocateFixed, Loader2, Search, X,
+  LocateFixed, Loader2, RotateCcw, AlertTriangle,
 } from 'lucide-react';
-
-/* ─── Inject Google Places autocomplete dropdown styling once ─── */
-const PAC_STYLE_ID = '__pac_style__';
-if (!document.getElementById(PAC_STYLE_ID)) {
-  const s = document.createElement('style');
-  s.id = PAC_STYLE_ID;
-  s.textContent = `
-    .pac-container {
-      z-index: 99999 !important;
-      border-radius: 14px !important;
-      margin-top: 6px !important;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.14), 0 2px 8px rgba(0,0,0,0.08) !important;
-      border: 1px solid #e5e7eb !important;
-      overflow: hidden !important;
-      font-family: inherit !important;
-      padding: 4px 0 !important;
-      background: #fff !important;
-    }
-    .dark .pac-container { background: #1f2937 !important; border-color: #374151 !important; }
-    .pac-item {
-      padding: 9px 14px !important;
-      cursor: pointer !important;
-      font-size: 13px !important;
-      display: flex !important;
-      align-items: center !important;
-      gap: 8px !important;
-      border-top: 1px solid #f3f4f6 !important;
-      transition: background 0.12s !important;
-      color: #374151 !important;
-    }
-    .pac-item:first-child { border-top: none !important; }
-    .pac-item:hover, .pac-item-selected { background: #eff6ff !important; }
-    .pac-item-query { font-size: 13px !important; font-weight: 600 !important; color: #111827 !important; }
-    .pac-matched { font-weight: 700 !important; color: #2563eb !important; }
-    .pac-icon { display: none !important; }
-    .pac-item:before {
-      content: '' !important;
-      display: inline-block !important;
-      width: 14px !important; height: 14px !important;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z'/%3E%3Ccircle cx='12' cy='9' r='2.5'/%3E%3C/svg%3E") !important;
-      background-repeat: no-repeat !important;
-      background-size: contain !important;
-      flex-shrink: 0 !important;
-    }
-    .pac-logo:after { display: none !important; }
-  `;
-  document.head.appendChild(s);
-}
 
 const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
-/* ─── SVG pin helper (returns raw SVG string for data-URL icons) ─── */
+/* ─── SVG pin helper ─── */
 function pinSvg(fill) {
   return `<svg width="30" height="40" viewBox="0 0 30 40" xmlns="http://www.w3.org/2000/svg">
     <path d="M15 0C6.72 0 0 6.72 0 15c0 10.5 15 25 15 25S30 25.5 30 15C30 6.72 23.28 0 15 0z"
@@ -81,18 +32,58 @@ function pinIcon(gm, color) {
   };
 }
 
+/* ─── Accuracy label helper ─── */
+function accColor(m) {
+  if (m == null) return '';
+  if (m <= 50)  return 'text-emerald-600 dark:text-emerald-400';
+  if (m <= 500) return 'text-amber-500 dark:text-amber-400';
+  return 'text-red-500 dark:text-red-400';
+}
+function accIcon(m) {
+  if (m == null) return '';
+  if (m <= 50)  return '✓';
+  if (m <= 500) return '~';
+  return '⚠';
+}
+
+/* ─── Google Geolocation API (REST) — gives a precise network-based fix ─── */
+async function googleGeolocate(apiKey) {
+  try {
+    const res = await fetch(
+      `https://www.googleapis.com/geolocation/v1/geolocate?key=${apiKey}`,
+      {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ considerIp: true }),
+      },
+    );
+    if (!res.ok) return null;
+    const d = await res.json();
+    if (d.location?.lat != null && d.location?.lng != null) {
+      return { lat: d.location.lat, lng: d.location.lng, accuracy: d.accuracy ?? 1000 };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 /* ════════════════════════════════════════════════════════════════════
    GeofenceMap component
 ════════════════════════════════════════════════════════════════════ */
 export default function GeofenceMap({ locations, onAdd, onDelete, onUpdate }) {
   /* ─ Refs ─ */
-  const containerRef  = useRef(null);
-  const mapRef        = useRef(null);
-  const markersRef    = useRef({});     // { [id]: { marker, circle } }
-  const meRef         = useRef(null);   // "You are here" marker
-  const pendingRef    = useRef(null);   // unsaved new-pin marker
-  const clickListRef  = useRef(null);   // map click listener handle
-  const searchInputRef = useRef(null);
+  const containerRef   = useRef(null);
+  const mapRef         = useRef(null);
+  const markersRef     = useRef({});
+  const meRef          = useRef(null);    // "You are here" marker
+  const accCircleRef   = useRef(null);    // accuracy radius circle
+  const pendingRef     = useRef(null);
+  const clickListRef   = useRef(null);
+  const watchIdRef     = useRef(null);    // watchPosition handle
+  const lastAddrPosRef = useRef(null);    // last position that was reverse-geocoded
+  const firstFixRef    = useRef(false);   // has the map been panned to first fix?
+  const prevAccuracyRef = useRef(null);   // previous accuracy — detects big improvements
 
   /* ─ Map state ─ */
   const [mapsReady,  setMapsReady]  = useState(false);
@@ -102,25 +93,23 @@ export default function GeofenceMap({ locations, onAdd, onDelete, onUpdate }) {
   /* ─ Device location ─ */
   const [myPos,      setMyPos]      = useState(null);
   const [myAddress,  setMyAddress]  = useState('');
+  const [accuracyM,  setAccuracyM]  = useState(null);
   const [locLoading, setLocLoading] = useState(true);
   const [locError,   setLocError]   = useState('');
-
-  /* ─ Search bar ─ */
-  const [searchQuery, setSearchQuery] = useState('');
-  const autocompleteRef = useRef(null);   // google Autocomplete instance
+  const [locKey,     setLocKey]     = useState(0);  // increment → re-trigger watchPosition
 
   /* ─ Place new location ─ */
   const [placing,    setPlacing]    = useState(false);
   const [pendingLL,  setPendingLL]  = useState(null);
   const [newName,    setNewName]    = useState('');
-  const [newRadius,  setNewRadius]  = useState(50);
+  const [newRadius,  setNewRadius]  = useState(100);
   const [saving,     setSaving]     = useState(false);
   const [saveErr,    setSaveErr]    = useState('');
 
   /* ─ Inline edit ─ */
   const [editId,     setEditId]     = useState(null);
   const [editName,   setEditName]   = useState('');
-  const [editRadius, setEditRadius] = useState(50);
+  const [editRadius, setEditRadius] = useState(100);
   const [editSaving, setEditSaving] = useState(false);
 
   /* ══════════════════════════════════════════════════════════════════
@@ -149,37 +138,27 @@ export default function GeofenceMap({ locations, onAdd, onDelete, onUpdate }) {
     });
     mapRef.current = map;
 
-    // Google Places Autocomplete on the search input
-    if (searchInputRef.current) {
-      const ac = new gm.places.Autocomplete(searchInputRef.current, {
-        fields: ['geometry', 'name', 'formatted_address'],
-      });
-      autocompleteRef.current = ac;
-      ac.addListener('place_changed', () => {
-        const p = ac.getPlace();
-        if (p.geometry?.location) {
-          map.setCenter(p.geometry.location);
-          map.setZoom(16);
-          setSearchQuery(p.formatted_address || p.name || '');
-        }
-      });
-    }
-
     return () => {
       Object.values(markersRef.current).forEach(({ marker, circle }) => {
         marker?.setMap(null);
         circle?.setMap(null);
       });
       markersRef.current = {};
-      meRef.current?.setMap(null);      meRef.current     = null;
-      pendingRef.current?.setMap(null); pendingRef.current = null;
+      meRef.current?.setMap(null);        meRef.current      = null;
+      accCircleRef.current?.setMap(null); accCircleRef.current = null;
+      pendingRef.current?.setMap(null);   pendingRef.current = null;
       if (clickListRef.current) gm.event.removeListener(clickListRef.current);
       mapRef.current = null;
     };
   }, [mapsReady]);
 
   /* ══════════════════════════════════════════════════════════════════
-     EFFECT 3 — Device location + reverse-geocode
+     EFFECT 3 — watchPosition + Google Geolocation API
+     • Calls Google Geolocation API first for a quick precise fix
+     • watchPosition runs continuously, improving accuracy over time
+     • Map auto re-centres whenever accuracy improves significantly
+     • Adaptive zoom: GPS lock → z18, WiFi → z16, IP-based → z13
+     Re-runs when locKey changes (user hit "Refresh location").
   ══════════════════════════════════════════════════════════════════ */
   useEffect(() => {
     if (!mapsReady) return;
@@ -188,44 +167,146 @@ export default function GeofenceMap({ locations, onAdd, onDelete, onUpdate }) {
       setLocLoading(false);
       return;
     }
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const { latitude: lat, longitude: lng } = pos.coords;
-        setMyPos({ lat, lng });
-        setLocLoading(false);
 
-        const gm = window.google.maps;
-        if (mapRef.current) {
-          mapRef.current.setCenter({ lat, lng });
-          mapRef.current.setZoom(15);
-          meRef.current?.setMap(null);
-          meRef.current = new gm.Marker({
-            position: { lat, lng },
-            map:      mapRef.current,
-            title:    'You are here',
-            icon: {
-              path:        gm.SymbolPath.CIRCLE,
-              scale:       10,
-              fillColor:   '#2563eb',
-              fillOpacity: 1,
-              strokeColor: '#ffffff',
-              strokeWeight: 3,
-            },
-            zIndex: 1000,
-          });
-          const iw = new gm.InfoWindow({ content: '<b>You are here</b>' });
-          meRef.current.addListener('click', () => iw.open(mapRef.current, meRef.current));
+    let cancelled = false;
+
+    /* ── helper: place/move the blue dot + accuracy circle ── */
+    const paintDot = (lat, lng, accM) => {
+      const gm  = window.google.maps;
+      const map = mapRef.current;
+      if (!map) return;
+
+      const prevAcc = prevAccuracyRef.current;
+
+      // Decide whether to re-centre the map:
+      //  • always on the very first fix
+      //  • when accuracy jumps from IP/coarse (>500m) to real GPS (≤200m)
+      //  • when accuracy roughly halves compared to last reading
+      const isFirst   = !firstFixRef.current;
+      const bigImprove = prevAcc != null && (
+        (prevAcc > 500  && accM <= 200) ||
+        (prevAcc > 200  && accM <= 50)  ||
+        (accM < prevAcc * 0.4 && prevAcc > 100)
+      );
+
+      if (isFirst || bigImprove) {
+        firstFixRef.current = true;
+        const zoom = accM <= 50 ? 18 : accM <= 200 ? 16 : accM <= 500 ? 15 : 13;
+        map.setCenter({ lat, lng });
+        map.setZoom(zoom);
+      }
+      prevAccuracyRef.current = accM;
+
+      /* "You are here" blue dot */
+      meRef.current?.setMap(null);
+      meRef.current = new gm.Marker({
+        position: { lat, lng },
+        map,
+        title:   `You are here (±${accM}m accuracy)`,
+        icon: {
+          path:         gm.SymbolPath.CIRCLE,
+          scale:        10,
+          fillColor:    '#2563eb',
+          fillOpacity:  1,
+          strokeColor:  '#ffffff',
+          strokeWeight: 3,
+        },
+        zIndex: 1000,
+      });
+      const dotColor = accM <= 50 ? '#16a34a' : accM <= 500 ? '#d97706' : '#dc2626';
+      const iw = new gm.InfoWindow({
+        content: `<div style="font-size:13px;padding:4px 6px;line-height:1.5">
+          <b>You are here</b><br/>
+          <span style="color:${dotColor}">
+            ±${accM >= 1000 ? (accM/1000).toFixed(1)+'km' : accM+'m'} accuracy
+            ${accM > 500 ? '<br/><i style="font-size:11px">(low — may be IP-based)</i>' : ''}
+          </span>
+        </div>`,
+      });
+      meRef.current.addListener('click', () => iw.open(map, meRef.current));
+
+      /* Accuracy circle */
+      accCircleRef.current?.setMap(null);
+      accCircleRef.current = new gm.Circle({
+        center:        { lat, lng },
+        radius:        accM,
+        strokeColor:   '#3b82f6',
+        strokeOpacity: 0.50,
+        strokeWeight:  1.5,
+        fillColor:     '#93c5fd',
+        fillOpacity:   0.12,
+        map,
+        zIndex: 1,
+      });
+    };
+
+    /* ── Step 1: Google Geolocation API — fast network-based fix ── */
+    googleGeolocate(API_KEY).then(fix => {
+      if (cancelled || !fix || firstFixRef.current) return;
+      // Paint an initial dot while waiting for browser GPS to lock
+      paintDot(fix.lat, fix.lng, Math.round(fix.accuracy));
+      setMyPos({ lat: fix.lat, lng: fix.lng });
+      setAccuracyM(Math.round(fix.accuracy));
+      setLocLoading(false);
+      reverseGeocodeGoogle(fix.lat, fix.lng, API_KEY).then(addr => {
+        if (!cancelled) {
+          setMyAddress(addr.fullAddr || addr.short || `${fix.lat.toFixed(5)}, ${fix.lng.toFixed(5)}`);
+          lastAddrPosRef.current = { lat: fix.lat, lng: fix.lng };
         }
+      });
+    });
+
+    /* ── Step 2: watchPosition — continuous, improving GPS accuracy ── */
+    const onSuccess = async (pos) => {
+      if (cancelled) return;
+      const { latitude: lat, longitude: lng, accuracy } = pos.coords;
+      const accM = Math.round(accuracy);
+
+      setMyPos({ lat, lng });
+      setAccuracyM(accM);
+      setLocLoading(false);
+      setLocError('');
+
+      paintDot(lat, lng, accM);
+
+      // Reverse-geocode only if position moved > ~100 m or accuracy improved a lot
+      const last    = lastAddrPosRef.current;
+      const movedM  = last
+        ? Math.sqrt(((lat - last.lat) * 111000) ** 2 + ((lng - last.lng) * 111000) ** 2)
+        : Infinity;
+      const prevAcc = prevAccuracyRef.current ?? Infinity;
+      if (movedM > 100 || (prevAcc > 500 && accM <= 200)) {
+        lastAddrPosRef.current = { lat, lng };
         const addr = await reverseGeocodeGoogle(lat, lng, API_KEY);
-        setMyAddress(addr.fullAddr || addr.short || `${lat.toFixed(5)}, ${lng.toFixed(5)}`);
-      },
-      (err) => {
-        setLocError(err.code === 1 ? 'Location access denied — allow in browser settings' : 'Unable to detect location');
-        setLocLoading(false);
-      },
-      { enableHighAccuracy: true, timeout: 10000 },
+        if (!cancelled) setMyAddress(addr.fullAddr || addr.short || `${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+      }
+    };
+
+    const onError = (err) => {
+      if (cancelled) return;
+      setLocError(
+        err.code === 1
+          ? 'Location access denied — allow in browser/OS settings'
+          : 'Unable to detect location',
+      );
+      setLocLoading(false);
+    };
+
+    watchIdRef.current = navigator.geolocation.watchPosition(
+      onSuccess, onError,
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
     );
-  }, [mapsReady]); // eslint-disable-line
+
+    return () => {
+      cancelled = true;
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+      }
+      accCircleRef.current?.setMap(null);
+      accCircleRef.current = null;
+    };
+  }, [mapsReady, locKey]); // eslint-disable-line
 
   /* ══════════════════════════════════════════════════════════════════
      EFFECT 4 — Map type
@@ -244,7 +325,6 @@ export default function GeofenceMap({ locations, onAdd, onDelete, onUpdate }) {
 
     const liveIds = new Set(locations.map(l => l.id));
 
-    // Remove stale markers
     Object.keys(markersRef.current).forEach(key => {
       if (!liveIds.has(Number(key))) {
         markersRef.current[key]?.marker?.setMap(null);
@@ -253,7 +333,6 @@ export default function GeofenceMap({ locations, onAdd, onDelete, onUpdate }) {
       }
     });
 
-    // Add / update
     locations.forEach(loc => {
       const pos = { lat: Number(loc.lat), lng: Number(loc.lng) };
       const existing = markersRef.current[loc.id];
@@ -294,7 +373,6 @@ export default function GeofenceMap({ locations, onAdd, onDelete, onUpdate }) {
       }
     });
 
-    // Fit bounds on first load (when no user location yet)
     if (!myPos && locations.length > 0) {
       try {
         const bounds = new gm.LatLngBounds();
@@ -328,7 +406,7 @@ export default function GeofenceMap({ locations, onAdd, onDelete, onUpdate }) {
       });
       setPendingLL({ lat, lng });
       setNewName('');
-      setNewRadius(50);
+      setNewRadius(100);
       setSaveErr('');
     });
 
@@ -341,10 +419,48 @@ export default function GeofenceMap({ locations, onAdd, onDelete, onUpdate }) {
   }, [placing, mapsReady]);
 
   /* ─── Handlers ──────────────────────────────────────────────────── */
+
+  /* Restart GPS acquisition (clears old fix, re-runs watchPosition) */
+  const refreshLocation = () => {
+    if (watchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
+      watchIdRef.current = null;
+    }
+    meRef.current?.setMap(null);        meRef.current      = null;
+    accCircleRef.current?.setMap(null); accCircleRef.current = null;
+    lastAddrPosRef.current = null;
+    firstFixRef.current    = false;
+    prevAccuracyRef.current = null;
+    setMyPos(null);
+    setMyAddress('');
+    setAccuracyM(null);
+    setLocLoading(true);
+    setLocError('');
+    setLocKey(k => k + 1);
+  };
+
+  /* Drop pending pin at device GPS position */
+  const handleUseMyLocation = () => {
+    const gm = window.google?.maps;
+    if (!gm || !mapRef.current || !myPos) return;
+    pendingRef.current?.setMap(null);
+    pendingRef.current = new gm.Marker({
+      position: myPos,
+      map:      mapRef.current,
+      icon:     pinIcon(gm, '#16a34a'),
+    });
+    mapRef.current.setCenter(myPos);
+    mapRef.current.setZoom(18);
+    setPendingLL({ lat: myPos.lat, lng: myPos.lng });
+    setNewName('');
+    setNewRadius(100);
+    setSaveErr('');
+  };
+
   const flyToMe = () => {
     if (myPos && mapRef.current) {
       mapRef.current.setCenter({ lat: myPos.lat, lng: myPos.lng });
-      mapRef.current.setZoom(17);
+      mapRef.current.setZoom(accuracyM && accuracyM > 500 ? 12 : 17);
     }
   };
 
@@ -355,7 +471,20 @@ export default function GeofenceMap({ locations, onAdd, onDelete, onUpdate }) {
       await onAdd({ name: newName.trim(), lat: pendingLL.lat, lng: pendingLL.lng, radius_meters: newRadius });
       pendingRef.current?.setMap(null); pendingRef.current = null;
       setPendingLL(null); setPlacing(false);
-    } catch (e) { setSaveErr(e?.response?.data?.detail || 'Failed to save'); }
+    } catch (e) {
+      const d = e?.response?.data;
+      let msg = 'Failed to save — check connection and try again.';
+      if (d) {
+        if (d.detail) msg = d.detail;
+        else if (typeof d === 'object') {
+          const parts = Object.entries(d)
+            .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`)
+            .join(' · ');
+          if (parts) msg = parts;
+        }
+      }
+      setSaveErr(msg);
+    }
     finally { setSaving(false); }
   };
 
@@ -384,7 +513,9 @@ export default function GeofenceMap({ locations, onAdd, onDelete, onUpdate }) {
     );
   }
 
-  /* ─── Render ─────────────────────────────────────────────────────── */
+  const poorAccuracy = accuracyM != null && accuracyM > 500;
+
+  /* ─── Render ─── */
   return (
     <div className="space-y-3">
 
@@ -394,26 +525,33 @@ export default function GeofenceMap({ locations, onAdd, onDelete, onUpdate }) {
           ? 'bg-gray-50 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700'
           : locError
             ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800'
-            : 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'}`}>
+            : poorAccuracy
+              ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800'
+              : 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'}`}>
 
         <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0
           ${locLoading ? 'bg-gray-200 dark:bg-gray-700'
-            : locError  ? 'bg-amber-100 dark:bg-amber-900/30'
-                        : 'bg-blue-100 dark:bg-blue-900/30'}`}>
+            : locError    ? 'bg-amber-100 dark:bg-amber-900/30'
+            : poorAccuracy ? 'bg-orange-100 dark:bg-orange-900/30'
+                           : 'bg-blue-100 dark:bg-blue-900/30'}`}>
           {locLoading
             ? <Loader2 size={16} className="text-gray-400 animate-spin" />
             : locError
               ? <MapPin size={16} className="text-amber-500" />
-              : <LocateFixed size={16} className="text-blue-600 dark:text-blue-400" />}
+              : poorAccuracy
+                ? <AlertTriangle size={16} className="text-orange-500" />
+                : <LocateFixed size={16} className="text-blue-600 dark:text-blue-400" />}
         </div>
 
         <div className="flex-1 min-w-0">
           <p className={`text-xs font-bold uppercase tracking-wide mb-0.5
-            ${locLoading ? 'text-gray-400'
-              : locError  ? 'text-amber-600 dark:text-amber-400'
-                          : 'text-blue-600 dark:text-blue-400'}`}>
+            ${locLoading   ? 'text-gray-400'
+              : locError   ? 'text-amber-600 dark:text-amber-400'
+              : poorAccuracy ? 'text-orange-600 dark:text-orange-400'
+                             : 'text-blue-600 dark:text-blue-400'}`}>
             {locLoading ? 'Detecting your location…' : locError ? 'Location unavailable' : 'Your device location'}
           </p>
+
           {!locLoading && !locError && myPos && (
             <>
               <p className="text-sm font-medium text-gray-800 dark:text-white truncate">
@@ -422,50 +560,53 @@ export default function GeofenceMap({ locations, onAdd, onDelete, onUpdate }) {
               <p className="text-xs text-gray-400 tabular-nums mt-0.5">
                 {myPos.lat.toFixed(6)}, {myPos.lng.toFixed(6)}
               </p>
+              {accuracyM != null && (
+                <p className={`text-xs mt-0.5 font-semibold ${accColor(accuracyM)}`}>
+                  {accIcon(accuracyM)} Accuracy: ±{accuracyM >= 1000 ? `${(accuracyM/1000).toFixed(1)}km` : `${accuracyM}m`}
+                  {accuracyM > 500 && ' — location may be IP-based, not GPS'}
+                </p>
+              )}
             </>
           )}
           {locError && <p className="text-xs text-amber-600 dark:text-amber-400">{locError}</p>}
         </div>
 
-        {myPos && (
-          <button onClick={flyToMe} title="Centre map on my location"
-            className="shrink-0 p-2 rounded-lg bg-blue-100 dark:bg-blue-900/40 hover:bg-blue-200
-                       dark:hover:bg-blue-900/60 transition-colors">
-            <Navigation size={14} className="text-blue-600 dark:text-blue-400" />
+        <div className="flex items-center gap-1 shrink-0">
+          {/* Refresh location */}
+          <button onClick={refreshLocation} title="Refresh location"
+            className="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
+            <RotateCcw size={14} className={`text-gray-500 dark:text-gray-400 ${locLoading ? 'animate-spin' : ''}`} />
           </button>
-        )}
+          {/* Fly to my location */}
+          {myPos && (
+            <button onClick={flyToMe} title="Centre map on my location"
+              className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/40 hover:bg-blue-200 dark:hover:bg-blue-900/60 transition-colors">
+              <Navigation size={14} className="text-blue-600 dark:text-blue-400" />
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Low accuracy warning banner */}
+      {poorAccuracy && !locLoading && (
+        <div className="flex items-start gap-2.5 px-4 py-3 rounded-xl
+                        bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800">
+          <AlertTriangle size={15} className="text-orange-500 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-semibold text-orange-700 dark:text-orange-400">
+              Inaccurate location detected (±{accuracyM >= 1000 ? `${(accuracyM/1000).toFixed(1)}km` : `${accuracyM}m`})
+            </p>
+            <p className="text-xs text-orange-600/80 dark:text-orange-400/70 mt-0.5">
+              Your device is using IP-based location which can be far off.
+              To set the correct office location: click <strong>"Add location"</strong> → then click the exact spot on the map.
+              Or switch to Satellite view to find your building.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* ── Controls row ── */}
       <div className="flex flex-wrap items-center gap-2">
-
-        {/* Google Places Autocomplete search */}
-        <div className="relative flex-1 min-w-[220px]">
-          <div className={`flex items-center gap-2 border rounded-xl px-3 py-2.5 shadow-sm transition-all
-            bg-white dark:bg-gray-800
-            border-gray-200 dark:border-gray-700
-            focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-400/20`}>
-            <Search size={15} className="text-blue-500 shrink-0" />
-            <input
-              ref={searchInputRef}
-              type="text"
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              placeholder="Search address, city or place…"
-              className="flex-1 bg-transparent text-sm text-gray-700 dark:text-gray-200 outline-none placeholder-gray-400 min-w-0"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => {
-                  setSearchQuery('');
-                  if (searchInputRef.current) searchInputRef.current.value = '';
-                }}
-                className="shrink-0 w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-600 flex items-center justify-center hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors">
-                <X size={10} className="text-gray-500 dark:text-gray-300" />
-              </button>
-            )}
-          </div>
-        </div>
 
         {/* Map type */}
         <div className="flex rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 shadow-sm">
@@ -484,18 +625,39 @@ export default function GeofenceMap({ locations, onAdd, onDelete, onUpdate }) {
         <button onClick={() => { if (placing) cancelNew(); else setPlacing(true); }}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold shadow-sm transition-all
             ${placing ? 'bg-amber-500 hover:bg-amber-600 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'}`}>
-          <Plus size={15} />
+          <MapPin size={15} />
           {placing ? 'Cancel' : 'Add location'}
         </button>
       </div>
 
       {/* Instruction strip */}
       {placing && !pendingLL && (
-        <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl
-                        bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800
-                        text-blue-700 dark:text-blue-300 text-sm">
-          <MapPin size={14} className="animate-bounce shrink-0" />
-          Search for your location above, then click anywhere on the map to drop a pin
+        <div className="space-y-2">
+          {/* Quick-pin at device GPS position */}
+          {myPos && (
+            <button onClick={handleUseMyLocation}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl
+                         bg-emerald-600 hover:bg-emerald-700 active:scale-[.98] text-white
+                         text-sm font-semibold transition-all shadow-sm">
+              <LocateFixed size={14} />
+              {poorAccuracy
+                ? `Use GPS location (±${accuracyM >= 1000 ? `${(accuracyM/1000).toFixed(1)}km` : `${accuracyM}m`} — low accuracy)`
+                : 'Use my current GPS location as pin'}
+            </button>
+          )}
+          {/* Manual click hint */}
+          <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl
+                          bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800
+                          text-blue-700 dark:text-blue-300 text-sm">
+            <MapPin size={14} className="animate-bounce shrink-0" />
+            {poorAccuracy
+              ? 'Recommended: Switch to Satellite view, find your building, then click on it'
+              : myPos
+                ? 'Or tap anywhere on the map to place a custom pin'
+                : locLoading
+                  ? 'Detecting your location… or tap anywhere on the map'
+                  : 'Tap anywhere on the map to drop a pin'}
+          </div>
         </div>
       )}
 
@@ -542,7 +704,7 @@ export default function GeofenceMap({ locations, onAdd, onDelete, onUpdate }) {
       <div
         ref={containerRef}
         className="w-full rounded-2xl overflow-hidden border border-gray-200 dark:border-gray-700 shadow-lg"
-        style={{ height: 420, position: 'relative', zIndex: 0 }}
+        style={{ height: 460, position: 'relative', zIndex: 0 }}
       >
         {!mapsReady && !mapError && (
           <div className="absolute inset-0 bg-gray-100 dark:bg-gray-800 flex flex-col items-center justify-center gap-3">
@@ -553,10 +715,14 @@ export default function GeofenceMap({ locations, onAdd, onDelete, onUpdate }) {
       </div>
 
       {/* ── Legend ── */}
-      <div className="flex items-center gap-4 px-1 text-xs text-gray-400">
+      <div className="flex flex-wrap items-center gap-4 px-1 text-xs text-gray-400">
         <span className="flex items-center gap-1.5">
           <span className="w-3 h-3 rounded-full bg-blue-500 inline-block" />
           You are here
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded-full bg-blue-200 border border-blue-400 inline-block" />
+          GPS accuracy area
         </span>
         <span className="flex items-center gap-1.5">
           <span className="w-3 h-3 rounded-full bg-[#2563eb] inline-block border border-white" />
@@ -656,7 +822,7 @@ export default function GeofenceMap({ locations, onAdd, onDelete, onUpdate }) {
             </div>
             <p className="text-sm font-semibold text-gray-500 dark:text-gray-400">No office locations pinned yet</p>
             <p className="text-xs text-gray-400 mt-1">
-              Search for your office address above, click "Add location", then tap the map to drop a pin
+              Click "Add location", then tap the exact spot on the map to drop a pin
             </p>
           </div>
         )}

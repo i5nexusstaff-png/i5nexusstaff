@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { MapPin, Search, Maximize2, Building2, X, RefreshCw } from 'lucide-react';
-import { projectsApi } from '../../services/api';
+import { MapPin, Search, Maximize2, Building2, X, RefreshCw, LayoutGrid, List } from 'lucide-react';
+import { projectsApi, bookingRequestsApi } from '../../services/api';
 import ImageZoomViewer from '../../components/ImageZoomViewer';
+import PlotLayoutGrid from '../../components/PlotLayoutGrid';
 
 // ── Status config ─────────────────────────────────────────────────────────────
 const STATUS_CFG = {
@@ -26,6 +27,7 @@ export default function StaffProjects() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [loadingPlots, setLoadingPlots] = useState(false);
   const [zoomImg,      setZoomImg]      = useState(null);
+  const [view,         setView]         = useState('layout');
 
   useEffect(() => {
     projectsApi.list().then(r => setProjects(r.data.results || r.data));
@@ -39,6 +41,23 @@ export default function StaffProjects() {
       const r = await projectsApi.plots(p.id);
       setPlots(r.data);
     } finally { setLoadingPlots(false); }
+  };
+
+  const reloadPlots = async () => {
+    if (!selected) return;
+    const r = await projectsApi.plots(selected.id);
+    setPlots(r.data);
+  };
+
+  const handleRequest = async (plotId, formData) => {
+    await bookingRequestsApi.create({
+      plot:             plotId,
+      requested_status: formData.requested_status,
+      customer_name:    formData.customer_name,
+      customer_phone:   formData.customer_phone,
+      notes:            formData.notes,
+    });
+    await reloadPlots();
   };
 
   const filtered = plots.filter(p => {
@@ -181,67 +200,96 @@ export default function StaffProjects() {
             ))}
           </div>
 
-          {/* Search */}
-          <div className="relative mb-4">
-            <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-            <input value={search} onChange={e => setSearch(e.target.value)}
-              placeholder="Search plot no, facing…"
-              className="w-full pl-9 pr-4 py-2.5 border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-white rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-accent/30" />
-            {search && (
-              <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                <X size={13} />
+          {/* Search + view toggle row */}
+          <div className="flex gap-3 mb-4 items-center flex-wrap">
+            <div className="relative flex-1 min-w-[180px]">
+              <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+              <input value={search} onChange={e => setSearch(e.target.value)}
+                placeholder="Search plot no, facing…"
+                className="w-full pl-9 pr-4 py-2.5 border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-white rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-accent/30" />
+              {search && (
+                <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  <X size={13} />
+                </button>
+              )}
+            </div>
+
+            {/* View toggle */}
+            <div className="flex rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 shadow-sm shrink-0">
+              <button onClick={() => setView('layout')}
+                className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-bold transition-colors
+                  ${view === 'layout'
+                    ? 'bg-accent text-white'
+                    : 'bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+                <LayoutGrid size={13} /> Layout
               </button>
-            )}
+              <button onClick={() => setView('table')}
+                className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-bold transition-colors border-l border-gray-200 dark:border-gray-700
+                  ${view === 'table'
+                    ? 'bg-accent text-white'
+                    : 'bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+                <List size={13} /> Table
+              </button>
+            </div>
           </div>
 
-          {/* Table */}
-          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
-            {loadingPlots ? (
-              <div className="text-center py-16 text-gray-400">
-                <RefreshCw size={22} className="mx-auto mb-2 animate-spin" />
-                Loading plots…
-              </div>
-            ) : filtered.length === 0 ? (
-              <div className="text-center py-12 text-gray-400 dark:text-gray-500">
-                {plots.length === 0 ? 'No plots in this project yet.' : 'No plots match your search.'}
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50 dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700">
-                    <tr>
-                      {['Plot No', 'Area (sq.ft)', 'Facing', 'Rate/sq.ft', 'Total Cost', 'Status'].map(h => (
-                        <th key={h} className="text-left py-3 px-4 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide whitespace-nowrap">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
-                    {filtered.map(plot => {
-                      const cfg = STATUS_CFG[plot.status] || STATUS_CFG.available;
-                      return (
-                        <tr key={plot.id} className="hover:bg-gray-50/70 dark:hover:bg-gray-800/50 transition-colors">
-                          <td className="py-3 px-4 font-black text-gray-800 dark:text-white">{plot.plot_no}</td>
-                          <td className="py-3 px-4 text-gray-600 dark:text-gray-300 tabular-nums">{plot.area_sqft?.toLocaleString('en-IN') || '—'}</td>
-                          <td className="py-3 px-4 text-gray-600 dark:text-gray-300 capitalize">{plot.facing || '—'}</td>
-                          <td className="py-3 px-4 text-gray-600 dark:text-gray-300 tabular-nums">{plot.rate_per_sqft ? `₹${plot.rate_per_sqft.toLocaleString('en-IN')}` : '—'}</td>
-                          <td className="py-3 px-4 font-semibold text-gray-700 dark:text-gray-200 tabular-nums">{fmtINR(plot.total_cost)}</td>
-                          <td className="py-3 px-4">
-                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold ${cfg.badge}`}>
-                              <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
-                              {cfg.label}
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+          {/* ── Layout view ── */}
+          {view === 'layout' && (
+            loadingPlots
+              ? <div className="text-center py-16 text-gray-400"><RefreshCw size={22} className="mx-auto mb-2 animate-spin" />Loading plots…</div>
+              : <PlotLayoutGrid plots={filtered} onRequest={handleRequest} />
+          )}
+
+          {/* ── Table view ── */}
+          {view === 'table' && (
+            <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+              {loadingPlots ? (
+                <div className="text-center py-16 text-gray-400">
+                  <RefreshCw size={22} className="mx-auto mb-2 animate-spin" />
+                  Loading plots…
+                </div>
+              ) : filtered.length === 0 ? (
+                <div className="text-center py-12 text-gray-400 dark:text-gray-500">
+                  {plots.length === 0 ? 'No plots in this project yet.' : 'No plots match your search.'}
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700">
+                      <tr>
+                        {['Plot No', 'Area (sq.ft)', 'Facing', 'Rate/sq.ft', 'Total Cost', 'Status'].map(h => (
+                          <th key={h} className="text-left py-3 px-4 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
+                      {filtered.map(plot => {
+                        const cfg = STATUS_CFG[plot.status] || STATUS_CFG.available;
+                        return (
+                          <tr key={plot.id} className="hover:bg-gray-50/70 dark:hover:bg-gray-800/50 transition-colors">
+                            <td className="py-3 px-4 font-black text-gray-800 dark:text-white">{plot.plot_no}</td>
+                            <td className="py-3 px-4 text-gray-600 dark:text-gray-300 tabular-nums">{plot.area_sqft?.toLocaleString('en-IN') || '—'}</td>
+                            <td className="py-3 px-4 text-gray-600 dark:text-gray-300 capitalize">{plot.facing || '—'}</td>
+                            <td className="py-3 px-4 text-gray-600 dark:text-gray-300 tabular-nums">{plot.rate_per_sqft ? `₹${plot.rate_per_sqft.toLocaleString('en-IN')}` : '—'}</td>
+                            <td className="py-3 px-4 font-semibold text-gray-700 dark:text-gray-200 tabular-nums">{fmtINR(plot.total_cost)}</td>
+                            <td className="py-3 px-4">
+                              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold ${cfg.badge}`}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
+                                {cfg.label}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Plot count footer */}
-          {filtered.length > 0 && (
+          {filtered.length > 0 && view === 'table' && (
             <p className="text-xs text-gray-400 dark:text-gray-500 mt-3 text-right">
               Showing {filtered.length} of {plots.length} plots
             </p>

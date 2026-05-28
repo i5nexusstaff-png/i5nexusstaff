@@ -3,12 +3,13 @@ import {
   Plus, X, MapPin, Search, Upload, Image as ImageIcon,
   FileSpreadsheet, CheckCircle, AlertCircle, Trash2,
   Maximize2, Download, ChevronDown, Building2, Layers,
-  RefreshCw, FolderOpen, Pencil, Save, Camera,
+  RefreshCw, FolderOpen, Pencil, Save, Camera, LayoutGrid, List,
 } from 'lucide-react';
-import { projectsApi, plotsApi } from '../../services/api';
+import { projectsApi, plotsApi, bookingRequestsApi } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import api from '../../services/api';
 import ImageZoomViewer from '../../components/ImageZoomViewer';
+import PlotLayoutGrid from '../../components/PlotLayoutGrid';
 
 // ── Status config ─────────────────────────────────────────────────────────────
 const STATUSES = ['available', 'booked', 'in_process', 'blocked', 'sold'];
@@ -114,6 +115,9 @@ export default function AdminProjects() {
   const [addForm,     setAddForm]     = useState(EMPTY_PLOT);
   const [addSaving,   setAddSaving]   = useState(false);
 
+  // View toggle — 'layout' (tile grid) | 'table'
+  const [view, setView] = useState('layout');
+
   // ── Data loaders ─────────────────────────────────────────────────────────
   const loadProjects = useCallback(() =>
     projectsApi.list().then(r => setProjects(r.data.results || r.data)), []);
@@ -138,6 +142,27 @@ export default function AdminProjects() {
   const handleStatusSaved = (plotId, newStatus) => {
     setPlots(prev => prev.map(p => p.id === plotId ? { ...p, status: newStatus } : p));
     loadProjects();
+  };
+
+  /* Layout grid: status change (calls API + updates local state) */
+  const handleLayoutStatusChange = async (plotId, newStatus) => {
+    await plotsApi.update(plotId, { status: newStatus });
+    setPlots(prev => prev.map(p => p.id === plotId ? { ...p, status: newStatus } : p));
+    loadProjects();
+  };
+
+  /* Booking request actions — admin approve / reject / hold */
+  const handleApprove = async (reqId, notes) => {
+    await bookingRequestsApi.approve(reqId, notes);
+    await refreshProject();
+  };
+  const handleReject = async (reqId, notes) => {
+    await bookingRequestsApi.reject(reqId, notes);
+    await refreshProject();
+  };
+  const handleHold = async (reqId, notes) => {
+    await bookingRequestsApi.hold(reqId, notes);
+    await refreshProject();
   };
 
   const filtered = plots.filter(p => {
@@ -534,7 +559,7 @@ export default function AdminProjects() {
             )}
           </div>
 
-          {/* ── Search + controls ── */}
+          {/* ── Search + view toggle + controls ── */}
           <div className="flex gap-3 mb-4 flex-wrap items-center">
             <div className="relative flex-1 min-w-[200px]">
               <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"/>
@@ -547,6 +572,25 @@ export default function AdminProjects() {
                 </button>
               )}
             </div>
+
+            {/* View toggle */}
+            <div className="flex rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 shadow-sm shrink-0">
+              <button onClick={() => setView('layout')}
+                className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-bold transition-colors
+                  ${view === 'layout'
+                    ? 'bg-accent text-white'
+                    : 'bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+                <LayoutGrid size={13}/> Layout
+              </button>
+              <button onClick={() => setView('table')}
+                className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-bold transition-colors border-l border-gray-200 dark:border-gray-700
+                  ${view === 'table'
+                    ? 'bg-accent text-white'
+                    : 'bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+                <List size={13}/> Table
+              </button>
+            </div>
+
             <span className="text-xs text-gray-400 dark:text-gray-500 whitespace-nowrap">
               {filtered.length} of {plots.length} plots
             </span>
@@ -558,16 +602,13 @@ export default function AdminProjects() {
             )}
           </div>
 
-          {/* ── Plots table ── */}
-          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
-            {loadingPlots ? (
-              <div className="text-center py-16 text-gray-400">
-                <RefreshCw size={24} className="mx-auto mb-2 animate-spin"/> Loading plots…
-              </div>
-            ) : filtered.length === 0 ? (
-              <div className="text-center py-16 text-gray-400 dark:text-gray-500">
-                {plots.length === 0 ? (
-                  <div>
+          {/* ── Layout view (tile grid) ── */}
+          {view === 'layout' && (
+            loadingPlots
+              ? <div className="text-center py-16 text-gray-400"><RefreshCw size={24} className="mx-auto mb-2 animate-spin"/> Loading plots…</div>
+              : plots.length === 0
+                ? (
+                  <div className="text-center py-16 text-gray-400 dark:text-gray-500">
                     <FolderOpen size={36} className="mx-auto mb-3 text-gray-300 dark:text-gray-600"/>
                     <p className="font-semibold">No plots yet</p>
                     <p className="text-sm mt-1">Download the template, fill it in, then import</p>
@@ -582,54 +623,93 @@ export default function AdminProjects() {
                       </button>
                     </div>
                   </div>
-                ) : <p>No plots match your search</p>}
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50 dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700">
-                    <tr>
-                      {['Plot No','Area (sq.ft)','Facing','Road Width','Rate/sq.ft','Total Cost','Survey No','Status',
-                        ...(canManage ? ['Actions'] : [])
-                      ].map(h => (
-                        <th key={h} className="text-left py-3 px-4 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide whitespace-nowrap">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
-                    {filtered.map(plot => (
-                      <tr key={plot.id} className="hover:bg-gray-50/70 dark:hover:bg-gray-800/50 transition-colors">
-                        <td className="py-3 px-4 font-black text-gray-800 dark:text-white">{plot.plot_no}</td>
-                        <td className="py-3 px-4 text-gray-600 dark:text-gray-300 tabular-nums">{plot.area_sqft ? Number(plot.area_sqft).toLocaleString('en-IN') : '—'}</td>
-                        <td className="py-3 px-4 text-gray-600 dark:text-gray-300 capitalize">{plot.facing || '—'}</td>
-                        <td className="py-3 px-4 text-gray-600 dark:text-gray-300">{plot.road_width || '—'}</td>
-                        <td className="py-3 px-4 text-gray-600 dark:text-gray-300 tabular-nums">{plot.rate_per_sqft ? `₹${Number(plot.rate_per_sqft).toLocaleString('en-IN')}` : '—'}</td>
-                        <td className="py-3 px-4 font-semibold text-gray-700 dark:text-gray-200 tabular-nums">{fmtINR(plot.total_cost)}</td>
-                        <td className="py-3 px-4 text-gray-500 dark:text-gray-400 text-xs">{plot.survey_no || '—'}</td>
-                        <td className="py-3 px-4">
-                          <StatusSelect plot={plot} onSaved={handleStatusSaved}/>
-                        </td>
-                        {canManage && (
-                          <td className="py-3 px-4">
-                            <div className="flex items-center gap-1.5">
-                              <button onClick={() => openEditPlot(plot)} title="Edit plot"
-                                className="p-1.5 rounded-lg text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 transition-colors">
-                                <Pencil size={13}/>
-                              </button>
-                              <button onClick={() => setDeletePlot(plot)} title="Delete plot"
-                                className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 transition-colors">
-                                <Trash2 size={13}/>
-                              </button>
-                            </div>
-                          </td>
-                        )}
+                )
+                : (
+                  <PlotLayoutGrid
+                    plots={filtered}
+                    canEdit={canManage}
+                    onStatusChange={canManage ? handleLayoutStatusChange : undefined}
+                    onApprove={canManage ? handleApprove : undefined}
+                    onReject={canManage ? handleReject : undefined}
+                    onHold={canManage ? handleHold : undefined}
+                  />
+                )
+          )}
+
+          {/* ── Table view ── */}
+          {view === 'table' && (
+            <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+              {loadingPlots ? (
+                <div className="text-center py-16 text-gray-400">
+                  <RefreshCw size={24} className="mx-auto mb-2 animate-spin"/> Loading plots…
+                </div>
+              ) : filtered.length === 0 ? (
+                <div className="text-center py-16 text-gray-400 dark:text-gray-500">
+                  {plots.length === 0 ? (
+                    <div>
+                      <FolderOpen size={36} className="mx-auto mb-3 text-gray-300 dark:text-gray-600"/>
+                      <p className="font-semibold">No plots yet</p>
+                      <p className="text-sm mt-1">Download the template, fill it in, then import</p>
+                      <div className="flex gap-3 justify-center mt-4 flex-wrap">
+                        <button onClick={downloadTemplate}
+                          className="flex items-center gap-2 px-4 py-2 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700 text-emerald-700 dark:text-emerald-400 rounded-xl text-sm font-semibold hover:bg-emerald-100 transition-colors">
+                          <Download size={14}/> Download Template
+                        </button>
+                        <button onClick={() => { setShowImport(true); setImportResult(null); setImportFile(null); }}
+                          className="flex items-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 text-blue-700 dark:text-blue-400 rounded-xl text-sm font-semibold hover:bg-blue-100 transition-colors">
+                          <Upload size={14}/> Import Plots
+                        </button>
+                      </div>
+                    </div>
+                  ) : <p>No plots match your search</p>}
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700">
+                      <tr>
+                        {['Plot No','Area (sq.ft)','Facing','Road Width','Rate/sq.ft','Total Cost','Survey No','Status',
+                          ...(canManage ? ['Actions'] : [])
+                        ].map(h => (
+                          <th key={h} className="text-left py-3 px-4 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                        ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
+                      {filtered.map(plot => (
+                        <tr key={plot.id} className="hover:bg-gray-50/70 dark:hover:bg-gray-800/50 transition-colors">
+                          <td className="py-3 px-4 font-black text-gray-800 dark:text-white">{plot.plot_no}</td>
+                          <td className="py-3 px-4 text-gray-600 dark:text-gray-300 tabular-nums">{plot.area_sqft ? Number(plot.area_sqft).toLocaleString('en-IN') : '—'}</td>
+                          <td className="py-3 px-4 text-gray-600 dark:text-gray-300 capitalize">{plot.facing || '—'}</td>
+                          <td className="py-3 px-4 text-gray-600 dark:text-gray-300">{plot.road_width || '—'}</td>
+                          <td className="py-3 px-4 text-gray-600 dark:text-gray-300 tabular-nums">{plot.rate_per_sqft ? `₹${Number(plot.rate_per_sqft).toLocaleString('en-IN')}` : '—'}</td>
+                          <td className="py-3 px-4 font-semibold text-gray-700 dark:text-gray-200 tabular-nums">{fmtINR(plot.total_cost)}</td>
+                          <td className="py-3 px-4 text-gray-500 dark:text-gray-400 text-xs">{plot.survey_no || '—'}</td>
+                          <td className="py-3 px-4">
+                            <StatusSelect plot={plot} onSaved={handleStatusSaved}/>
+                          </td>
+                          {canManage && (
+                            <td className="py-3 px-4">
+                              <div className="flex items-center gap-1.5">
+                                <button onClick={() => openEditPlot(plot)} title="Edit plot"
+                                  className="p-1.5 rounded-lg text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 transition-colors">
+                                  <Pencil size={13}/>
+                                </button>
+                                <button onClick={() => setDeletePlot(plot)} title="Delete plot"
+                                  className="p-1.5 rounded-lg text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 transition-colors">
+                                  <Trash2 size={13}/>
+                                </button>
+                              </div>
+                            </td>
+                          )}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

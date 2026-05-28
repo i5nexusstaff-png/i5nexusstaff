@@ -73,6 +73,7 @@ import StaffAttendance from './pages/staff/StaffAttendance';
 import StaffLeaves from './pages/staff/StaffLeaves';
 import StaffProjects from './pages/staff/StaffProjects';
 import StaffOffers    from './pages/staff/StaffOffers';
+import MadhavamLayout from './pages/MadhavamLayout';
 import StaffSettings  from './pages/staff/StaffSettings';
 
 function SuperAdminLayout({ children }) {
@@ -116,6 +117,8 @@ export default function App() {
             <Route path="/superadmin/attendance" element={<SuperAdminLayout><AdminAttendance /></SuperAdminLayout>} />
             <Route path="/superadmin/leaves"     element={<SuperAdminLayout><AdminLeaves /></SuperAdminLayout>} />
             <Route path="/superadmin/projects"   element={<SuperAdminLayout><AdminProjects /></SuperAdminLayout>} />
+            <Route path="/superadmin/tutorials"  element={<SuperAdminLayout><AdminTutorials /></SuperAdminLayout>} />
+            <Route path="/superadmin/layout/madhavamnagar" element={<SuperAdminLayout><MadhavamLayout /></SuperAdminLayout>} />
             <Route path="/superadmin/reports"    element={<SuperAdminLayout><AdminReports /></SuperAdminLayout>} />
             <Route path="/superadmin/settings"   element={<SuperAdminLayout><AdminSettings /></SuperAdminLayout>} />
 
@@ -129,6 +132,7 @@ export default function App() {
             <Route path="/admin/todos" element={<AdminLayout><AdminTodos /></AdminLayout>} />
             <Route path="/admin/tutorials" element={<AdminLayout><AdminTutorials /></AdminLayout>} />
             <Route path="/admin/projects" element={<AdminLayout><AdminProjects /></AdminLayout>} />
+            <Route path="/admin/layout/madhavamnagar" element={<AdminLayout><MadhavamLayout /></AdminLayout>} />
             <Route path="/admin/achievements" element={<AdminLayout><AdminAchievements /></AdminLayout>} />
             <Route path="/admin/offers" element={<AdminLayout><AdminOffers /></AdminLayout>} />
             <Route path="/admin/banners"   element={<AdminLayout><AdminBanners /></AdminLayout>} />
@@ -144,6 +148,7 @@ export default function App() {
             <Route path="/staff/attendance" element={<StaffLayout><StaffAttendance /></StaffLayout>} />
             <Route path="/staff/leaves" element={<StaffLayout><StaffLeaves /></StaffLayout>} />
             <Route path="/staff/projects" element={<StaffLayout><StaffProjects /></StaffLayout>} />
+            <Route path="/staff/layout/madhavamnagar" element={<StaffLayout><MadhavamLayout /></StaffLayout>} />
             <Route path="/staff/offers"    element={<StaffLayout><StaffOffers /></StaffLayout>} />
             <Route path="/staff/settings"  element={<StaffLayout><StaffSettings /></StaffLayout>} />
 

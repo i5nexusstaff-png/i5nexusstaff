@@ -18,7 +18,7 @@ window.gm_authFailure = () => {
     'Most likely fix:\n' +
     '1. Go to console.cloud.google.com → APIs & Services → Credentials\n' +
     '2. Click your API key → under "Application restrictions" set to None (unrestricted)\n' +
-    '3. Under "API restrictions" → Restrict key → select Maps JavaScript API + Places API\n' +
+    '3. Under "API restrictions" → Restrict key → select Maps JavaScript API + Geocoding API\n' +
     '4. Save and hard-refresh (Ctrl+Shift+R)';
   console.error('[Google Maps]', msg);
   if (_rejectFn) _rejectFn(new Error('Google Maps auth failed — see console for details'));
@@ -37,7 +37,7 @@ export function loadGoogleMaps(apiKey) {
       resolve(window.google.maps);
     };
     const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&callback=${callbackName}&loading=async`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&callback=${callbackName}&loading=async`;
     script.async = true;
     script.defer = true;
     script.onerror = () => {

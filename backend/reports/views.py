@@ -18,6 +18,21 @@ from .models import DailyReport, REPORT_SCHEMA
 from .serializers import DailyReportSerializer
 
 
+def _notify_report_submitted(staff_user, report_date):
+    """Notify all admins when a staff member submits a daily report."""
+    try:
+        from accounts.models import User
+        from notifications.push_utils import create_and_push
+        name  = staff_user.get_full_name() or staff_user.username
+        title = f'📄 Report Submitted'
+        msg   = f'{name} submitted their daily report for {report_date}.'
+        for admin in User.objects.filter(role__in=['admin', 'super_admin'], is_active=True):
+            url = '/superadmin/reports' if admin.role == 'super_admin' else '/admin/reports'
+            create_and_push(admin, title, msg, 'report', url=url)
+    except Exception:
+        pass
+
+
 class DailyReportViewSet(viewsets.ModelViewSet):
     serializer_class   = DailyReportSerializer
     permission_classes = [IsAuthenticated]
@@ -68,12 +83,18 @@ class DailyReportViewSet(viewsets.ModelViewSet):
             ser = self.get_serializer(existing, data=request.data, partial=True)
             ser.is_valid(raise_exception=True)
             extra = {}
-            if new_status == 'submitted' and not existing.submitted_at:
+            first_submit = new_status == 'submitted' and not existing.submitted_at
+            if first_submit:
                 extra['submitted_at'] = timezone.now()
             ser.save(**extra)
+            if first_submit:
+                _notify_report_submitted(user, report_date)
             return Response(ser.data)
         except DailyReport.DoesNotExist:
-            return super().create(request, *args, **kwargs)
+            response = super().create(request, *args, **kwargs)
+            if new_status == 'submitted':
+                _notify_report_submitted(user, report_date)
+            return response
 
     def update(self, request, *args, **kwargs):
         kwargs['partial'] = True

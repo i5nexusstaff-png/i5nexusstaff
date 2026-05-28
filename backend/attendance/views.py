@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.utils import timezone
 from django.contrib.auth import get_user_model
+import datetime
 from .models import Attendance, OfficeLocation, AttendanceSettings, haversine_m
 from .serializers import AttendanceSerializer, OfficeLocationSerializer, AttendanceSettingsSerializer
 
@@ -58,6 +59,32 @@ def _check_geofence(lat, lng):
             best_match = loc
 
     return False, best_match, round(best_dist)
+
+
+# ─── 45-day auto-cleanup ──────────────────────────────────────────────────────
+def _cleanup_old_records():
+    """
+    Delete Attendance records (+ their selfie files) older than 45 days.
+    Throttled via cache so it runs at most once per 24 h regardless of how
+    many admin users trigger it.
+    Returns the number of rows deleted.
+    """
+    from django.core.cache import cache
+    if cache.get('_att_cleanup_done'):
+        return 0
+    cutoff = timezone.now().date() - datetime.timedelta(days=45)
+    old_qs = Attendance.objects.filter(date__lt=cutoff)
+    # Delete associated media files first so storage is freed
+    for att in old_qs.only('id', 'punch_in_selfie', 'punch_out_selfie'):
+        for fld in (att.punch_in_selfie, att.punch_out_selfie):
+            if fld:
+                try:
+                    fld.delete(save=False)
+                except Exception:
+                    pass
+    deleted, _ = old_qs.delete()
+    cache.set('_att_cleanup_done', True, timeout=86400)   # re-run after 24 h
+    return deleted
 
 
 # ─── Attendance Settings (singleton, admin-write) ──────────────────────────────
@@ -144,6 +171,15 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         if year:                               qs = qs.filter(date__year=year)
         return qs
 
+    def list(self, request, *args, **kwargs):
+        # Trigger 45-day cleanup lazily (admin/super_admin calls only, max once/day)
+        if request.user.role in ('admin', 'super_admin'):
+            try:
+                _cleanup_old_records()
+            except Exception:
+                pass
+        return super().list(request, *args, **kwargs)
+
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 
@@ -172,8 +208,8 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         else:
             allowed, location_obj, dist = _check_geofence(lat, lng)
             if not allowed:
-                if not created:
-                    att.delete()    # remove empty record we just created
+                if created:
+                    att.delete()    # remove the brand-new empty record we just created
                 if location_obj:
                     return Response({
                         'error': (
@@ -191,8 +227,8 @@ class AttendanceViewSet(viewsets.ModelViewSet):
             mode      = 'geofence' if location_obj else 'gps_tagged'
 
         att.punch_in         = timezone.now()
-        att.punch_in_lat     = lat
-        att.punch_in_lng     = lng
+        att.punch_in_lat     = float(lat) if lat not in (None, '') else None
+        att.punch_in_lng     = float(lng) if lng not in (None, '') else None
         att.punch_in_address = request.data.get('address', '')
         att.within_geofence  = within_gf
         att.punch_mode       = mode
@@ -247,8 +283,8 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                 )
 
         att.punch_out         = timezone.now()
-        att.punch_out_lat     = lat
-        att.punch_out_lng     = lng
+        att.punch_out_lat     = float(lat) if lat not in (None, '') else None
+        att.punch_out_lng     = float(lng) if lng not in (None, '') else None
         att.punch_out_address = request.data.get('address', '')
         att.status            = 'present'
         if selfie:
