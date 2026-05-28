@@ -1,0 +1,46 @@
+# ── Python / Django ────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+*.so
+
+# Django specific
+*.log
+db.sqlite3
+db.sqlite3-journal
+backend/media/
+backend/staticfiles/
+backend/media_files/
+
+# Environment variables (NEVER commit secrets)
+.env
+.env.*
+!.env.example
+
+# ── Node / React / Vite ───────────────────────────────────────────────────────
+node_modules/
+frontend/dist/
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+
+# ── Misc ──────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
+*.bak
+
+# Runtime log files (local dev only)
+backend_err.txt
+backend_log.txt
+frontend_err.txt
+frontend_log.txt
