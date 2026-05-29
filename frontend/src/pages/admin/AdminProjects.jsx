@@ -165,12 +165,16 @@ export default function AdminProjects() {
     await refreshProject();
   };
 
-  const filtered = plots.filter(p => {
-    const q = search.toLowerCase();
-    const matchSearch = !search || p.plot_no?.toLowerCase().includes(q) || p.facing?.toLowerCase().includes(q);
-    const matchStatus = statusFilter === 'all' || p.status === statusFilter;
-    return matchSearch && matchStatus;
-  });
+  const filtered = plots
+    .filter(p => {
+      const q = search.toLowerCase();
+      const matchSearch = !search || p.plot_no?.toLowerCase().includes(q) || p.facing?.toLowerCase().includes(q);
+      const matchStatus = statusFilter === 'all' || p.status === statusFilter;
+      return matchSearch && matchStatus;
+    })
+    .sort((a, b) =>
+      (a.plot_no || '').localeCompare(b.plot_no || '', undefined, { numeric: true, sensitivity: 'base' })
+    );
 
   const statusCount = (s) => plots.filter(p => p.status === s).length;
 

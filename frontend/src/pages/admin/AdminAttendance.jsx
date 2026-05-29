@@ -336,9 +336,9 @@ export default function AdminAttendance() {
         { key: 'mine',      label: 'Super Admin Attendance', icon: <Clock size={15}/> },
       ]
     : [
-        { key: 'staff',   label: 'Staff Attendance', icon: <UserCheck size={15}/> },
-        { key: 'mine',    label: 'My Attendance',    icon: <Clock size={15}/> },
-        { key: 'sa_view', label: 'Super Admin',      icon: <Shield size={15}/> },
+        { key: 'staff',   label: 'Staff Attendance',  icon: <UserCheck size={15}/> },
+        { key: 'mine',    label: 'Admin Attendance',   icon: <Clock size={15}/> },
+        { key: 'sa_view', label: 'Super Admin',        icon: <Shield size={15}/> },
       ];
 
   /* ════════════════════════════════════════════════════════════════ */
@@ -563,23 +563,29 @@ export default function AdminAttendance() {
             <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
               <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700">
                 <h2 className="font-bold text-gray-800 dark:text-white">
-                  {isSuperAdmin ? 'Super Admin Attendance History' : 'My Attendance History'}
+                  {isSuperAdmin ? 'Super Admin Attendance History' : 'Admin Attendance History'}
                 </h2>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full text-sm min-w-[680px]">
+                <table className="w-full text-sm min-w-[740px]">
                   <thead className="bg-gray-50 dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700">
                     <tr>
-                      {['Date', 'Selfies', 'Punch In', 'Punch Out', 'Location', 'Mode', 'Hours', 'Status'].map(h => (
+                      {['Name', 'Date', 'Selfies', 'Punch In', 'Punch Out', 'Location', 'Mode', 'Hours', 'Status'].map(h => (
                         <th key={h} className="text-left py-3 px-4 text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap text-xs">{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {history.length === 0 ? (
-                      <tr><td colSpan={8} className="text-center py-8 text-gray-400 dark:text-gray-500">No records yet</td></tr>
+                      <tr><td colSpan={9} className="text-center py-8 text-gray-400 dark:text-gray-500">No records yet</td></tr>
                     ) : history.map(r => (
                       <tr key={r.id} className="border-b border-gray-50 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                        <td className="py-2.5 px-4 whitespace-nowrap">
+                          <p className="text-xs font-semibold text-gray-800 dark:text-white">
+                            {r.user_detail?.full_name || user?.full_name || user?.username || '—'}
+                          </p>
+                          <p className="text-[10px] text-gray-400">{r.user_detail?.role || user?.role || ''}</p>
+                        </td>
                         <td className="py-2.5 px-4 text-gray-700 dark:text-gray-300 whitespace-nowrap font-medium text-xs">{fmtDate(r.date)}</td>
                         <td className="py-2.5 px-4">
                           <div className="flex gap-1.5">

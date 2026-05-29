@@ -3,7 +3,7 @@ import {
   Trophy, Upload, History, Download,
   CheckCircle, XCircle, AlertCircle, Users,
   ChevronUp, ChevronDown, Plus, Trash2, Pencil, X, Save, RefreshCw,
-  LayoutDashboard, TrendingUp, Award, Target, Star,
+  LayoutDashboard, TrendingUp, Award, Target, Star, ChevronRight,
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -895,7 +895,7 @@ function AddRowModal({ teamType, teamName, period, members, onClose, onSaved }) 
 
 
 // ════════════════════════════════════════════════════════════════════════════
-// TAB: Members — CRUD for TeamMember records
+// TAB: Members — grouped accordion by team name (mobile-friendly)
 // ════════════════════════════════════════════════════════════════════════════
 function MembersTab() {
   const [members,    setMembers]    = useState([]);
@@ -903,19 +903,33 @@ function MembersTab() {
   const [filterType, setFilterType] = useState('all');
   const [search,     setSearch]     = useState('');
   const [addOpen,    setAddOpen]    = useState(false);
+  const [expanded,   setExpanded]   = useState(new Set()); // set of open team names
 
   const load = () => {
     setLoading(true);
     teamMembersApi.list()
-      .then(r => setMembers(r.data.results || r.data))
+      .then(r => {
+        const data = r.data.results || r.data;
+        setMembers(data);
+        // Auto-expand all teams on first load
+        const names = [...new Set(data.map(m => m.team_name))];
+        setExpanded(new Set(names));
+      })
       .finally(() => setLoading(false));
   };
 
   useEffect(() => { load(); }, []);
 
+  const toggleTeam = (name) =>
+    setExpanded(prev => {
+      const next = new Set(prev);
+      next.has(name) ? next.delete(name) : next.add(name);
+      return next;
+    });
+
   const filtered = members.filter(m => {
     const q = search.toLowerCase();
-    const matchType = filterType === 'all' || m.team_type === filterType;
+    const matchType   = filterType === 'all' || m.team_type === filterType;
     const matchSearch = !search ||
       m.employee_name.toLowerCase().includes(q) ||
       m.team_name.toLowerCase().includes(q) ||
@@ -923,11 +937,26 @@ function MembersTab() {
     return matchType && matchSearch;
   });
 
+  // Group by team_name, preserving insertion order
+  const teams = [];
+  const teamMap = {};
+  filtered.forEach(m => {
+    if (!teamMap[m.team_name]) {
+      teamMap[m.team_name] = [];
+      teams.push(m.team_name);
+    }
+    teamMap[m.team_name].push(m);
+  });
+
   const deleteMember = async (m) => {
     if (!confirm(`Delete ${m.employee_name}? This removes all their achievement records too.`)) return;
     await teamMembersApi.delete(m.id);
     load();
   };
+
+  const typeBadgeClass = (type) => type === 'sales'
+    ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400'
+    : 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400';
 
   return (
     <div>
@@ -946,7 +975,7 @@ function MembersTab() {
         </div>
         <input value={search} onChange={e => setSearch(e.target.value)}
           placeholder="Search name, team, designation…"
-          className="flex-1 min-w-[200px] border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"/>
+          className="flex-1 min-w-[160px] border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"/>
         <button onClick={() => setAddOpen(true)}
           className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl text-sm font-semibold hover:bg-primary/90 transition-all">
           <Plus size={14}/>Add Member
@@ -955,31 +984,71 @@ function MembersTab() {
 
       {loading ? (
         <p className="text-sm text-gray-400 animate-pulse">Loading members…</p>
+      ) : teams.length === 0 ? (
+        <div className="text-center py-14 text-gray-400 dark:text-gray-500">
+          <Users size={32} className="mx-auto mb-2"/>
+          <p>{members.length === 0 ? 'No members yet.' : 'No matches.'}</p>
+        </div>
       ) : (
-        <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
-          {filtered.length === 0 ? (
-            <div className="text-center py-14 text-gray-400 dark:text-gray-500">
-              <Users size={32} className="mx-auto mb-2"/>
-              <p>{members.length === 0 ? 'No members yet.' : 'No matches.'}</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700">
-                  <tr>
-                    {['Name','Designation','Team','Type',''].map(h => (
-                      <th key={h} className="text-left py-3 px-4 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{h}</th>
+        <div className="space-y-3">
+          {teams.map(teamName => {
+            const teamMembers = teamMap[teamName];
+            const isOpen = expanded.has(teamName);
+            const teamType = teamMembers[0]?.team_type;
+            return (
+              <div key={teamName}
+                className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+                {/* Team header — tap to expand/collapse */}
+                <button
+                  onClick={() => toggleTeam(teamName)}
+                  className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors text-left">
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                    teamType === 'sales'
+                      ? 'bg-emerald-100 dark:bg-emerald-900/30'
+                      : 'bg-purple-100 dark:bg-purple-900/30'
+                  }`}>
+                    <Users size={14} className={teamType === 'sales' ? 'text-emerald-600 dark:text-emerald-400' : 'text-purple-600 dark:text-purple-400'} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-gray-800 dark:text-white text-sm truncate">{teamName}</p>
+                    <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">
+                      {teamMembers.length} member{teamMembers.length !== 1 ? 's' : ''} ·{' '}
+                      <span className={`font-medium ${teamType === 'sales' ? 'text-emerald-600 dark:text-emerald-400' : 'text-purple-600 dark:text-purple-400'}`}>
+                        {teamType === 'sales' ? 'Sales' : 'Pre-Sales'}
+                      </span>
+                    </p>
+                  </div>
+                  {isOpen
+                    ? <ChevronDown size={16} className="text-gray-400 shrink-0" />
+                    : <ChevronRight size={16} className="text-gray-400 shrink-0" />}
+                </button>
+
+                {/* Member list (expanded) */}
+                {isOpen && (
+                  <div className="border-t border-gray-50 dark:border-gray-800">
+                    {teamMembers.map((m, idx) => (
+                      <div key={m.id}
+                        className={`flex items-center gap-3 px-4 py-3 ${
+                          idx < teamMembers.length - 1 ? 'border-b border-gray-50 dark:border-gray-800' : ''
+                        } hover:bg-gray-50/60 dark:hover:bg-gray-800/40 transition-colors`}>
+                        {/* Avatar */}
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-blue-600 flex items-center justify-center text-white text-xs font-bold shrink-0">
+                          {(m.employee_name || '?')[0].toUpperCase()}
+                        </div>
+                        {/* Info */}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-gray-800 dark:text-white truncate">{m.employee_name}</p>
+                          <p className="text-[11px] text-gray-400 dark:text-gray-500 truncate">{m.designation || '—'}</p>
+                        </div>
+                        {/* Actions */}
+                        <MemberInlineActions member={m} onDelete={() => deleteMember(m)} onSaved={load} />
+                      </div>
                     ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
-                  {filtered.map(m => (
-                    <MemberRow key={m.id} member={m} onDelete={() => deleteMember(m)} onSaved={load}/>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -988,7 +1057,8 @@ function MembersTab() {
   );
 }
 
-function MemberRow({ member: m, onDelete, onSaved }) {
+/* Inline edit / delete for a member inside the accordion */
+function MemberInlineActions({ member: m, onDelete, onSaved }) {
   const [editing, setEditing] = useState(false);
   const [draft,   setDraft]   = useState({});
   const [saving,  setSaving]  = useState(false);
@@ -1002,68 +1072,45 @@ function MemberRow({ member: m, onDelete, onSaved }) {
     } finally { setSaving(false); }
   };
 
-  const typeBadge = m.team_type === 'sales'
-    ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400'
-    : 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400';
+  if (editing) {
+    return (
+      <div className="flex items-center gap-1.5">
+        <input
+          value={draft.employee_name ?? m.employee_name}
+          onChange={e => setDraft(d => ({ ...d, employee_name: e.target.value }))}
+          placeholder="Name"
+          className="border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1 text-xs bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none w-28"/>
+        <input
+          value={draft.designation ?? m.designation}
+          onChange={e => setDraft(d => ({ ...d, designation: e.target.value }))}
+          placeholder="Designation"
+          className="border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1 text-xs bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none w-24"/>
+        <button onClick={save} disabled={saving}
+          className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors">
+          <Save size={13}/>
+        </button>
+        <button onClick={() => { setEditing(false); setDraft({}); }}
+          className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+          <X size={13}/>
+        </button>
+      </div>
+    );
+  }
 
   return (
-    <tr className="hover:bg-gray-50/70 dark:hover:bg-gray-800/50 transition-colors">
-      <td className="py-3 px-4">
-        {editing
-          ? <input value={draft.employee_name ?? m.employee_name} onChange={e => setDraft(d=>({...d,employee_name:e.target.value}))}
-              className="border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1 text-sm bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-1 focus:ring-primary/50 w-44"/>
-          : <span className="font-semibold text-gray-800 dark:text-white">{m.employee_name}</span>
-        }
-      </td>
-      <td className="py-3 px-4 text-gray-500 dark:text-gray-400">
-        {editing
-          ? <input value={draft.designation ?? m.designation} onChange={e => setDraft(d=>({...d,designation:e.target.value}))}
-              className="border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1 text-sm bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-1 focus:ring-primary/50 w-36"/>
-          : m.designation || '—'
-        }
-      </td>
-      <td className="py-3 px-4 text-gray-600 dark:text-gray-300">
-        {editing
-          ? <input value={draft.team_name ?? m.team_name} onChange={e => setDraft(d=>({...d,team_name:e.target.value}))}
-              className="border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1 text-sm bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-1 focus:ring-primary/50 w-44"/>
-          : m.team_name
-        }
-      </td>
-      <td className="py-3 px-4">
-        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${typeBadge}`}>
-          {m.team_type === 'sales' ? 'Sales' : 'Pre-Sales'}
-        </span>
-      </td>
-      <td className="py-3 px-4">
-        <div className="flex items-center gap-1">
-          {editing ? (
-            <>
-              <button onClick={save} disabled={saving}
-                className="p-1 rounded text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors">
-                <Save size={14}/>
-              </button>
-              <button onClick={() => { setEditing(false); setDraft({}); }}
-                className="p-1 rounded text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-                <X size={14}/>
-              </button>
-            </>
-          ) : (
-            <>
-              <button onClick={() => setEditing(true)}
-                className="p-1 rounded text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors">
-                <Pencil size={14}/>
-              </button>
-              <button onClick={onDelete}
-                className="p-1 rounded text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
-                <Trash2 size={14}/>
-              </button>
-            </>
-          )}
-        </div>
-      </td>
-    </tr>
+    <div className="flex items-center gap-0.5 shrink-0">
+      <button onClick={() => setEditing(true)}
+        className="p-1.5 rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors">
+        <Pencil size={13}/>
+      </button>
+      <button onClick={onDelete}
+        className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+        <Trash2 size={13}/>
+      </button>
+    </div>
   );
 }
+
 
 function AddMemberModal({ onClose, onSaved }) {
   const [form, setForm] = useState({ employee_name:'', designation:'', team_name:'', team_type:'sales', department:'' });
