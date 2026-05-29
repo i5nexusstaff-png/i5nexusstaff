@@ -2,10 +2,10 @@ import { useEffect, useState, useRef } from 'react';
 import { useConfirm } from '../../components/ConfirmDialog';
 import {
   Plus, Trash2, Calendar, ChevronLeft, ChevronRight, X,
-  MoreHorizontal, GripVertical, AlertCircle, Clock, Search,
-  CheckCircle2, Circle, Loader2, Users,
+  MoreHorizontal, AlertCircle, Search,
+  CheckCircle2, Circle, Loader2, Users, UserCheck, ChevronDown,
 } from 'lucide-react';
-import { todosApi } from '../../services/api';
+import { todosApi, usersApi } from '../../services/api';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const COLUMNS = [
@@ -50,17 +50,34 @@ function getWeekStart(offset = 0) {
 const fmtDate = (d) => new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 
 // ── Add Task Form (inline in column) ─────────────────────────────────────────
-function AddTaskForm({ colKey, weekStart, onDone, onCancel }) {
+function AddTaskForm({ colKey, weekStart, onDone, onCancel, staffList }) {
   const [form, setForm] = useState({
     title: '', description: '', priority: 'medium', due_date: '', status: colKey,
   });
-  const [saving, setSaving] = useState(false);
+  const [assignMode,  setAssignMode]  = useState('all');   // 'all' | 'specific'
+  const [assignedTo,  setAssignedTo]  = useState([]);       // array of user IDs
+  const [staffSearch, setStaffSearch] = useState('');
+  const [saving,      setSaving]      = useState(false);
+
+  const filteredStaff = (staffList || []).filter(s =>
+    (s.full_name || s.username || '').toLowerCase().includes(staffSearch.toLowerCase())
+  );
+
+  const toggleUser = (id) =>
+    setAssignedTo(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
 
   const handleAdd = async () => {
     if (!form.title.trim()) return;
+    if (assignMode === 'specific' && assignedTo.length === 0) return;
     setSaving(true);
     try {
-      await todosApi.create({ ...form, week_start: weekStart, assigned_to_all: true });
+      const payload = {
+        ...form,
+        week_start: weekStart,
+        assigned_to_all: assignMode === 'all',
+        assigned_to: assignMode === 'specific' ? assignedTo : [],
+      };
+      await todosApi.create(payload);
       onDone();
     } finally { setSaving(false); }
   };
@@ -95,12 +112,80 @@ function AddTaskForm({ colKey, weekStart, onDone, onCancel }) {
           onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))}
           className="flex-1 px-2.5 py-1.5 text-xs border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none"/>
       </div>
+
+      {/* ── Assign to ── */}
+      <div>
+        <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1.5">Assign to</p>
+        <div className="flex gap-1.5">
+          <button
+            type="button"
+            onClick={() => setAssignMode('all')}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-semibold border transition
+              ${assignMode === 'all'
+                ? 'bg-blue-600 border-blue-600 text-white'
+                : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+            <Users size={11}/> All Staff
+          </button>
+          <button
+            type="button"
+            onClick={() => setAssignMode('specific')}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-semibold border transition
+              ${assignMode === 'specific'
+                ? 'bg-indigo-600 border-indigo-600 text-white'
+                : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+            <UserCheck size={11}/> Specific
+          </button>
+        </div>
+
+        {/* Staff picker */}
+        {assignMode === 'specific' && (
+          <div className="mt-2 border border-gray-200 dark:border-gray-600 rounded-lg overflow-hidden">
+            <div className="relative">
+              <input
+                value={staffSearch}
+                onChange={e => setStaffSearch(e.target.value)}
+                placeholder="Search staff…"
+                className="w-full pl-7 pr-3 py-1.5 text-xs bg-gray-50 dark:bg-gray-700 dark:text-white focus:outline-none border-b border-gray-200 dark:border-gray-600"/>
+              <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"/>
+            </div>
+            <div className="max-h-[120px] overflow-y-auto">
+              {filteredStaff.length === 0 ? (
+                <p className="text-center text-xs text-gray-400 py-3">No staff found</p>
+              ) : filteredStaff.map(s => (
+                <label key={s.id}
+                  className="flex items-center gap-2 px-2.5 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={assignedTo.includes(s.id)}
+                    onChange={() => toggleUser(s.id)}
+                    className="w-3 h-3 accent-indigo-600"/>
+                  <div className="w-5 h-5 rounded-full bg-indigo-500 flex items-center justify-center text-white text-[9px] font-black shrink-0">
+                    {(s.full_name || s.username || '?')[0].toUpperCase()}
+                  </div>
+                  <span className="text-xs text-gray-700 dark:text-gray-300 truncate">
+                    {s.full_name || s.username}
+                  </span>
+                </label>
+              ))}
+            </div>
+            {assignedTo.length > 0 && (
+              <div className="px-2.5 py-1.5 bg-indigo-50 dark:bg-indigo-900/20 border-t border-gray-200 dark:border-gray-600">
+                <p className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold">
+                  {assignedTo.length} person{assignedTo.length > 1 ? 's' : ''} selected
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       <div className="flex gap-2 pt-0.5">
         <button onClick={onCancel}
           className="flex-1 py-1.5 text-xs border border-gray-200 dark:border-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition font-medium">
           Cancel
         </button>
-        <button onClick={handleAdd} disabled={saving || !form.title.trim()}
+        <button onClick={handleAdd}
+          disabled={saving || !form.title.trim() || (assignMode === 'specific' && assignedTo.length === 0)}
           className="flex-1 py-1.5 text-xs font-bold text-white rounded-lg transition disabled:opacity-40 flex items-center justify-center gap-1"
           style={{ background: 'linear-gradient(135deg,#1E3A5F,#2563eb)' }}>
           {saving ? <Loader2 size={12} className="animate-spin"/> : <Plus size={12}/>}
@@ -182,26 +267,41 @@ function TodoCard({ todo, onDelete, onDragStart, isDragging, columns }) {
         </div>
       )}
 
+      {/* Assignment badge */}
+      {!todo.assigned_to_all && todo.assigned_to?.length > 0 && (
+        <div className="flex items-center gap-1 mb-2">
+          <UserCheck size={10} className="text-indigo-400 shrink-0"/>
+          <span className="text-[10px] text-indigo-500 dark:text-indigo-400 font-semibold">
+            {todo.assigned_to.length} assigned
+          </span>
+        </div>
+      )}
+
       {/* Footer */}
       <div className="flex items-center justify-between mt-1">
         <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${pm.cls}`}>
           <span className={`w-1.5 h-1.5 rounded-full ${pm.dot}`}/>
           {pm.label}
         </span>
-        {todo.completion_count > 0 && (
-          <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1.5">
+          {todo.assigned_to_all ? (
+            <span className="text-[9px] text-gray-400 dark:text-gray-500 font-medium flex items-center gap-0.5">
+              <Users size={9}/> All
+            </span>
+          ) : null}
+          {todo.completion_count > 0 && (
             <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-sm">
               <span className="text-[8px] font-black text-white">{todo.completion_count}</span>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );
 }
 
 // ── Kanban Column ─────────────────────────────────────────────────────────────
-function KanbanColumn({ col, todos, onDelete, onDragStart, onDragOver, onDrop, isDragOver, draggingId, weekStart, onReload, columns }) {
+function KanbanColumn({ col, todos, onDelete, onDragStart, onDragOver, onDrop, isDragOver, draggingId, weekStart, onReload, columns, staffList }) {
   const [showAdd, setShowAdd] = useState(false);
 
   return (
@@ -236,6 +336,7 @@ function KanbanColumn({ col, todos, onDelete, onDragStart, onDragOver, onDrop, i
           weekStart={weekStart}
           onDone={() => { setShowAdd(false); onReload(); }}
           onCancel={() => setShowAdd(false)}
+          staffList={staffList}
         />
       )}
 
@@ -271,6 +372,7 @@ function KanbanColumn({ col, todos, onDelete, onDragStart, onDragOver, onDrop, i
 export default function AdminTodos() {
   const confirm = useConfirm();
   const [todos,      setTodos]      = useState([]);
+  const [staffList,  setStaffList]  = useState([]);
   const [weekOffset, setWeekOffset] = useState(0);
   const [search,     setSearch]     = useState('');
   const [priFilter,  setPriFilter]  = useState('all');
@@ -287,6 +389,13 @@ export default function AdminTodos() {
       .finally(() => setLoading(false));
   };
   useEffect(() => { load(); }, [weekStart]);
+
+  // Fetch staff list once for the assignment picker
+  useEffect(() => {
+    usersApi.staffList()
+      .then(r => setStaffList(r.data?.results || r.data || []))
+      .catch(() => {});
+  }, []);
 
   const weekLabel = weekOffset === 0 ? 'This Week'
     : weekOffset === 1 ? 'Next Week'
@@ -432,6 +541,7 @@ export default function AdminTodos() {
               weekStart={weekStart}
               onReload={load}
               columns={COLUMNS}
+              staffList={staffList}
             />
           ))}
         </div>

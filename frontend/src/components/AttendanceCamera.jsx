@@ -326,10 +326,10 @@ export default function AttendanceCamera({
 
   /* ── Confirm ── */
   const confirm = useCallback(() => {
-    // GPS tagged always bypasses geofence check on the backend
-    const bypassGeofence = isGpsTagged || gpsState === 'denied' || geoFence?.allowed === false;
+    // Only GPS Tagged mode bypasses geofence enforcement on the backend
+    const bypassGeofence = isGpsTagged;
     onCapture({ blob, location, address, bypassGeofence });
-  }, [blob, location, address, onCapture, isGpsTagged, gpsState, geoFence]);
+  }, [blob, location, address, onCapture, isGpsTagged]);
 
   /* ── Derived ── */
   const isIn        = action === 'in';
@@ -342,6 +342,9 @@ export default function AttendanceCamera({
   // In geofencing mode, also block while GPS is still being acquired (no coords yet)
   // Without this, a fast tap sends null lat/lng → backend rejects with "GPS required"
   const waitingForGps = isGeofencing && gpsState === 'acquiring';
+
+  // In geofencing mode, block entirely when GPS is denied — can't verify location
+  const gpsBlockedInGeofence = isGeofencing && gpsState === 'denied';
 
   // Prefer the most readable address; only fall back to coords when geocoding hasn't resolved yet
   const liveAddr = address.fullAddr || address.short || address.cityLine
@@ -511,6 +514,18 @@ export default function AttendanceCamera({
               </div>
             )}
 
+            {/* Geofencing mode — GPS denied warning */}
+            {gpsBlockedInGeofence && (
+              <div className="mb-4 px-4 py-3 rounded-xl text-center max-w-xs w-full"
+                   style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.40)' }}>
+                <p className="text-red-400 text-sm font-bold">Location access required</p>
+                <p className="text-white/60 text-xs mt-1">
+                  Geofencing mode needs GPS to verify you are inside the office.
+                  Enable location in browser settings, or go back and choose GPS Tagged.
+                </p>
+              </div>
+            )}
+
             {/* GPS Tagged mode — info strip */}
             {isGpsTagged && gpsState === 'found' && (
               <div className="mb-4 px-4 py-2.5 rounded-xl text-center max-w-xs w-full"
@@ -523,23 +538,23 @@ export default function AttendanceCamera({
             {/* Shutter button */}
             <button
               onClick={capture}
-              disabled={camStep !== 'ready' || outsideAndBlocked || waitingForGps}
+              disabled={camStep !== 'ready' || outsideAndBlocked || waitingForGps || gpsBlockedInGeofence}
               className="relative w-[76px] h-[76px] rounded-full flex items-center justify-center
                          disabled:opacity-35 transition-transform active:scale-90"
               style={{
-                border: `3px solid ${isGpsTagged ? 'rgba(251,191,36,0.5)' : waitingForGps ? 'rgba(59,130,246,0.5)' : 'rgba(255,255,255,0.50)'}`,
+                border: `3px solid ${isGpsTagged ? 'rgba(251,191,36,0.5)' : (waitingForGps || gpsBlockedInGeofence) ? 'rgba(239,68,68,0.5)' : 'rgba(255,255,255,0.50)'}`,
                 background: 'rgba(255,255,255,0.10)',
               }}>
               <div className={`w-[58px] h-[58px] rounded-full shadow-2xl flex items-center justify-center
-                ${outsideAndBlocked || waitingForGps ? 'bg-gray-400' : 'bg-white'}`}>
+                ${outsideAndBlocked || waitingForGps || gpsBlockedInGeofence ? 'bg-gray-400' : 'bg-white'}`}>
                 {waitingForGps
                   ? <Loader2 size={24} className="text-white animate-spin" />
                   : <Camera size={26} className="text-gray-800" />}
               </div>
             </button>
             <p className={`text-[11px] mt-3 tracking-widest
-              ${outsideAndBlocked ? 'text-red-400' : waitingForGps ? 'text-blue-300/80' : isGpsTagged ? 'text-amber-400/70' : 'text-white/35'}`}>
-              {outsideAndBlocked ? 'MOVE CLOSER TO OFFICE' : waitingForGps ? 'ACQUIRING GPS…' : 'TAP TO CAPTURE'}
+              ${outsideAndBlocked || gpsBlockedInGeofence ? 'text-red-400' : waitingForGps ? 'text-blue-300/80' : isGpsTagged ? 'text-amber-400/70' : 'text-white/35'}`}>
+              {outsideAndBlocked ? 'MOVE CLOSER TO OFFICE' : waitingForGps ? 'ACQUIRING GPS…' : gpsBlockedInGeofence ? 'GPS REQUIRED' : 'TAP TO CAPTURE'}
             </p>
           </div>
         )}

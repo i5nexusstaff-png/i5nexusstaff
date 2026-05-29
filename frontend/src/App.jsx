@@ -125,8 +125,8 @@ export default function App() {
             <Route path="/superadmin/settings"   element={<SuperAdminLayout><AdminSettings /></SuperAdminLayout>} />
 
             {/* Admin routes */}
-            <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
-            <Route path="/admin/dashboard" element={<AdminLayout><AdminDashboard /></AdminLayout>} />
+            <Route path="/admin" element={<Navigate to="/admin/staff" replace />} />
+            <Route path="/admin/dashboard" element={<Navigate to="/admin/staff" replace />} />
             <Route path="/admin/staff" element={<AdminLayout><StaffDetails /></AdminLayout>} />
             <Route path="/admin/reports" element={<AdminLayout><AdminReports /></AdminLayout>} />
             <Route path="/admin/feedback" element={<AdminLayout><AdminFeedback /></AdminLayout>} />

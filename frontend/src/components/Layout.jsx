@@ -26,7 +26,6 @@ const superAdminNav = [
 ];
 
 const adminNav = [
-  { to: '/admin/dashboard',             icon: LayoutDashboard, label: 'Dashboard'    },
   { to: '/admin/staff',                 icon: Users,           label: 'Staff Details' },
   { to: '/admin/reports',               icon: FileText,        label: 'Reports' },
   { to: '/admin/feedback',              icon: MessageSquare,   label: 'Feedback' },

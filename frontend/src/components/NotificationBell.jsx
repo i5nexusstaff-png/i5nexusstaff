@@ -57,13 +57,31 @@ export default function NotificationBell() {
   const prevIdsRef = useRef(new Set());
   const popupTimerRef = useRef(null);
 
+  // ── Dismissed popup IDs (persisted per user in localStorage) ──
+  const dismissedKey = `dismissed_notif_popup_${user?.id || 'guest'}`;
+
+  const getDismissedIds = () => {
+    try { return new Set(JSON.parse(localStorage.getItem(dismissedKey) || '[]')); }
+    catch { return new Set(); }
+  };
+
+  const persistDismiss = (id) => {
+    const set = getDismissedIds();
+    set.add(id);
+    // Keep last 200 dismissed IDs to avoid unbounded localStorage growth
+    const arr = [...set].slice(-200);
+    localStorage.setItem(dismissedKey, JSON.stringify(arr));
+  };
+
   const load = async (isFirstLoad = false) => {
     try {
       const r = await notificationsApi.unread();
       const fresh = r.data || [];
       if (fresh.length > 0) {
         const newest = fresh[0];
-        if (isFirstLoad || !prevIdsRef.current.has(newest.id)) {
+        const dismissed = getDismissedIds();
+        const isNew = isFirstLoad || !prevIdsRef.current.has(newest.id);
+        if (isNew && !dismissed.has(newest.id)) {
           clearTimeout(popupTimerRef.current);
           setPopup(newest);
           popupTimerRef.current = setTimeout(() => setPopup(null), 7000);
@@ -216,7 +234,7 @@ export default function NotificationBell() {
                     Tap to view <ChevronRight size={10} />
                   </p>
                 </div>
-                <button onClick={(e) => { e.stopPropagation(); setPopup(null); }}
+                <button onClick={(e) => { e.stopPropagation(); persistDismiss(popup.id); setPopup(null); }}
                   className="text-gray-300 hover:text-gray-500 dark:hover:text-gray-300 p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition shrink-0">
                   <X size={16} />
                 </button>
