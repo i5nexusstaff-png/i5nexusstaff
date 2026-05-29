@@ -13,10 +13,10 @@ import { useEffect, useState } from 'react';
 import {
   Settings, Building2, HelpCircle, Shield,
   BookOpen, AlertTriangle, ChevronDown, ChevronUp,
-  User,
 } from 'lucide-react';
 import { companyApi } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
+import { FontSizeSection, ActiveSessionsSection } from '../../components/SettingsExtras';
 
 const LEGAL_DOCS = [
   { key: 'about',            label: 'About Company',     icon: Building2,     color: 'text-blue-500',   bg: 'bg-blue-50 dark:bg-blue-900/20'   },
@@ -91,6 +91,22 @@ export default function StaffSettings() {
           <h1 className="text-xl font-bold text-gray-800 dark:text-white">Settings</h1>
           <p className="text-xs text-gray-400">Company information &amp; legal documents</p>
         </div>
+      </div>
+
+      {/* ── Appearance ── */}
+      <div className="mb-6">
+        <p className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3 px-1">
+          Appearance
+        </p>
+        <FontSizeSection />
+      </div>
+
+      {/* ── Active Sessions ── */}
+      <div className="mb-6">
+        <p className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3 px-1">
+          Security
+        </p>
+        <ActiveSessionsSection />
       </div>
 
       {/* ── Support & Legal section ── */}

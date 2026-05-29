@@ -48,6 +48,8 @@ export const usersApi = {
   delete: (id) => api.delete(`/users/${id}/`),
   staffList: () => api.get('/users/staff_list/'),
   setRole: (id, role) => api.post(`/users/${id}/set_role/`, { role }),
+  sessions: (currentKey) => api.get('/users/sessions/', { params: { current: currentKey || '' } }),
+  revokeSession: (sessionKey) => api.delete(`/users/sessions/${sessionKey}/`),
 };
 export const projectsApi = {
   list:          ()           => api.get('/projects/'),

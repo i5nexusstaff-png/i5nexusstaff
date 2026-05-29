@@ -8,7 +8,7 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 from .serializers import UserSerializer, UserMiniSerializer, CompanyProfileSerializer
-from .models import PasswordResetOTP, CompanyProfile
+from .models import PasswordResetOTP, CompanyProfile, UserSession, _parse_device
 
 
 class AuthRateThrottle(AnonRateThrottle):
@@ -43,6 +43,27 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
     throttle_classes = [AuthRateThrottle]
+
+    def post(self, request, *args, **kwargs):
+        response = super().post(request, *args, **kwargs)
+        if response.status_code == 200:
+            ua = request.META.get('HTTP_USER_AGENT', '')
+            ip = (request.META.get('HTTP_X_FORWARDED_FOR', '').split(',')[0].strip()
+                  or request.META.get('REMOTE_ADDR', ''))
+            session = UserSession.objects.create(
+                user=self.get_serializer().user,
+                device_name=_parse_device(ua),
+                ip_address=ip or None,
+                user_agent=ua[:500],
+            )
+            response.data['session_key'] = str(session.session_key)
+        return response
+
+    def get_serializer(self):
+        # Cache the serializer so self.user is accessible after super().post()
+        if not hasattr(self, '_serializer'):
+            self._serializer = super().get_serializer()
+        return self._serializer
 
 
 class UserViewSet(viewsets.ModelViewSet):
@@ -88,6 +109,32 @@ class UserViewSet(viewsets.ModelViewSet):
         user.is_staff = (new_role == 'admin')
         user.save()
         return Response({'status': 'ok', 'username': user.username, 'role': user.role})
+
+    @action(detail=False, methods=['get'])
+    def sessions(self, request):
+        """List this user's active login sessions (most recent first, max 20)."""
+        current_key = request.query_params.get('current', '')
+        sessions = UserSession.objects.filter(user=request.user).order_by('-last_active')[:20]
+        data = [
+            {
+                'id':          str(s.session_key),
+                'device':      s.device_name or 'Unknown device',
+                'ip':          s.ip_address or '—',
+                'created_at':  s.created_at.isoformat(),
+                'last_active': s.last_active.isoformat(),
+                'is_current':  str(s.session_key) == current_key,
+            }
+            for s in sessions
+        ]
+        return Response(data)
+
+    @action(detail=False, methods=['delete'], url_path='sessions/(?P<session_key>[^/.]+)')
+    def revoke_session(self, request, session_key=None):
+        """Remove a session record (soft sign-out — JWT still valid until expiry)."""
+        deleted, _ = UserSession.objects.filter(user=request.user, session_key=session_key).delete()
+        if deleted:
+            return Response({'status': 'revoked'})
+        return Response({'error': 'Session not found'}, status=404)
 
 
 @api_view(['POST'])

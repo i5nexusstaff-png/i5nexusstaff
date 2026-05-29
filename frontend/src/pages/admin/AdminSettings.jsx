@@ -10,8 +10,9 @@ import {
   Settings, Clock, MapPin,
   CheckCircle, Save, ToggleLeft, ToggleRight,
   Building2, FileText, Shield, BookOpen, AlertTriangle, HelpCircle,
-  Camera, Globe, Phone, Mail, Upload,
+  Camera, Globe, Phone, Mail, Upload, Type,
 } from 'lucide-react';
+import { FontSizeSection, ActiveSessionsSection } from '../../components/SettingsExtras';
 import { officeLocationsApi, attendanceSettingsApi } from '../../services/api';
 import api from '../../services/api';
 
@@ -84,6 +85,7 @@ const SECTIONS = [
   { key: 'attendance', label: 'Attendance Settings', icon: Clock      },
   { key: 'geofencing', label: 'Geofencing',          icon: MapPin     },
   { key: 'legal',      label: 'Support & Legal',     icon: FileText   },
+  { key: 'appearance', label: 'Appearance & Security', icon: Type     },
 ];
 
 const LEGAL_DOCS = [
@@ -443,6 +445,25 @@ export default function AdminSettings() {
                   />
                 </Suspense>
               </MapErrorBoundary>
+            </div>
+          )}
+
+          {/* ════ Appearance & Security ════ */}
+          {section === 'appearance' && (
+            <div className="space-y-5">
+              <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm p-5 pb-3">
+                <div className="flex items-center gap-3 pb-3 border-b border-gray-100 dark:border-gray-800 mb-5">
+                  <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 flex items-center justify-center">
+                    <Type size={16} className="text-indigo-500" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-800 dark:text-white text-sm">Appearance &amp; Security</h3>
+                    <p className="text-xs text-gray-400">Font size preference and logged-in devices</p>
+                  </div>
+                </div>
+                <FontSizeSection />
+              </div>
+              <ActiveSessionsSection />
             </div>
           )}
 

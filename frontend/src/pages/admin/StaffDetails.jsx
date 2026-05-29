@@ -4,7 +4,7 @@ import {
   Plus, Trash2, Edit2, Search, X, ShieldCheck, ShieldOff,
   FileSpreadsheet, Users, Clock, CalendarCheck, ChevronRight,
   MoreVertical, Building2, UserCheck, Loader2, TrendingUp,
-  MapPin, Phone,
+  MapPin, Phone, Mail, LayoutList, LayoutGrid,
 } from 'lucide-react';
 import { usersApi, excelImportApi, attendanceApi, leavesApi } from '../../services/api';
 
@@ -142,6 +142,7 @@ export default function StaffDetails() {
   const [heroTab,      setHeroTab]      = useState('dept');   // dept | role
   const [dirTab,       setDirTab]       = useState('staff');  // staff | leaves | attendance
   const [openMenu,     setOpenMenu]     = useState(null);     // row actions dropdown
+  const [viewMode,     setViewMode]     = useState('list');   // list | teams
 
   // ── Load users ─────────────────────────────────────────────────────────────
   const load = () => usersApi.list().then(r => setUsers(r.data.results || r.data));
@@ -258,10 +259,30 @@ export default function StaffDetails() {
       u.last_name?.toLowerCase().includes(q) ||
       u.username?.toLowerCase().includes(q) ||
       u.employee_id?.toLowerCase().includes(q) ||
-      u.phone?.includes(q);
+      u.phone?.includes(q) ||
+      u.email?.toLowerCase().includes(q);
     const matchDept = !deptFilter || u.department === deptFilter;
     return matchSearch && matchDept;
   });
+
+  // ── Team grouping for Teams view ──────────────────────────────────────────
+  const TEAMS = [
+    { key: 'sales_ho',      label: 'Sales — Head Office',  match: u => u.department === 'Sales' && u.site_location === 'Head Office' },
+    { key: 'sales_tam',     label: 'Sales — Tambaram',     match: u => u.department === 'Sales' && u.site_location === 'Tambaram'    },
+    { key: 'sales_avi',     label: 'Sales — Auroville',    match: u => u.department === 'Sales' && u.site_location === 'Auroville'   },
+    { key: 'presales',      label: 'Presales',             match: u => u.department === 'Presales'         },
+    { key: 'digital',       label: 'Digital Marketing',    match: u => u.department === 'Digital Marketing'},
+    { key: 'legal',         label: 'Legal',                match: u => u.department === 'Legal'            },
+    { key: 'hr',            label: 'Human Resources',      match: u => u.department === 'Human Resources'  },
+    { key: 'admin_dept',    label: 'Administration',       match: u => u.department === 'Administration'   },
+    { key: 'accounts',      label: 'Accounts',             match: u => u.department === 'Accounts'         },
+    { key: 'management',    label: 'Management',           match: u => u.department === 'Management'       },
+    { key: 'others',        label: 'Others',               match: u => !['Sales','Presales','Digital Marketing','Legal','Human Resources','Administration','Accounts','Management'].includes(u.department) },
+  ];
+
+  const teamGroups = TEAMS
+    .map(t => ({ ...t, members: filtered.filter(t.match) }))
+    .filter(t => t.members.length > 0);
 
   // Close menu on outside click
   useEffect(() => {
@@ -507,25 +528,48 @@ export default function StaffDetails() {
           </div>
 
           {/* Tabs */}
-          <div className="flex gap-1 mb-4">
-            {[
-              { key: 'staff',      label: 'Employee List',       count: filtered.length },
-              { key: 'leaves',     label: 'Leave Requests',      count: leaves.length },
-              { key: 'attendance', label: "Today's Attendance",  count: attendance.length },
-            ].map(tab => (
-              <button key={tab.key} onClick={() => setDirTab(tab.key)}
-                className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                  dirTab === tab.key
-                    ? 'text-white shadow-md'
-                    : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
-                }`}
-                style={dirTab === tab.key ? { background: 'linear-gradient(135deg,#1E3A5F,#2563eb)' } : {}}>
-                {tab.label}
-                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
-                  dirTab === tab.key ? 'bg-white/20 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400'
-                }`}>{tab.count}</span>
-              </button>
-            ))}
+          <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
+            <div className="flex gap-1">
+              {[
+                { key: 'staff',      label: 'Employee List',       count: filtered.length },
+                { key: 'leaves',     label: 'Leave Requests',      count: leaves.length },
+                { key: 'attendance', label: "Today's Attendance",  count: attendance.length },
+              ].map(tab => (
+                <button key={tab.key} onClick={() => setDirTab(tab.key)}
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                    dirTab === tab.key
+                      ? 'text-white shadow-md'
+                      : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
+                  }`}
+                  style={dirTab === tab.key ? { background: 'linear-gradient(135deg,#1E3A5F,#2563eb)' } : {}}>
+                  {tab.label}
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
+                    dirTab === tab.key ? 'bg-white/20 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400'
+                  }`}>{tab.count}</span>
+                </button>
+              ))}
+            </div>
+            {/* List / Teams toggle — only on Employee List tab */}
+            {dirTab === 'staff' && (
+              <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-xl p-1">
+                <button onClick={() => setViewMode('list')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    viewMode === 'list'
+                      ? 'bg-white dark:bg-gray-700 text-gray-800 dark:text-white shadow-sm'
+                      : 'text-gray-500 dark:text-gray-400'
+                  }`}>
+                  <LayoutList size={13} /> List
+                </button>
+                <button onClick={() => setViewMode('teams')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    viewMode === 'teams'
+                      ? 'bg-white dark:bg-gray-700 text-gray-800 dark:text-white shadow-sm'
+                      : 'text-gray-500 dark:text-gray-400'
+                  }`}>
+                  <LayoutGrid size={13} /> Teams
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Search + filter (only for Employee List) */}
@@ -535,7 +579,7 @@ export default function StaffDetails() {
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input
                   value={search} onChange={e => setSearch(e.target.value)}
-                  placeholder="Search by name, username, phone, EMP ID…"
+                  placeholder="Search by name, email, phone, EMP ID…"
                   className="w-full pl-9 pr-4 py-2 border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-white rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-shadow"
                 />
               </div>
@@ -549,12 +593,12 @@ export default function StaffDetails() {
         </div>
 
         {/* ── Tab: Employee List ── */}
-        {dirTab === 'staff' && (
+        {dirTab === 'staff' && viewMode === 'list' && (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 dark:bg-gray-800/60 border-y border-gray-100 dark:border-gray-700">
                 <tr>
-                  {['Name', 'Department', 'Location', 'Phone', 'Role', 'Actions'].map(h => (
+                  {['Name', 'Department', 'Location', 'Contact', 'Role', 'Actions'].map(h => (
                     <th key={h} className="text-left py-3 px-5 text-[11px] text-gray-400 dark:text-gray-500 font-bold uppercase tracking-wider">{h}</th>
                   ))}
                 </tr>
@@ -588,24 +632,30 @@ export default function StaffDetails() {
                       </td>
 
                       {/* Department */}
-                      <td className="py-3.5 px-5">
-                        <DeptBadge dept={u.department} />
-                      </td>
+                      <td className="py-3.5 px-5"><DeptBadge dept={u.department} /></td>
 
                       {/* Location */}
                       <td className="py-3.5 px-5">
                         <span className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 font-medium">
-                          <MapPin size={11} className="text-gray-400 dark:text-gray-500 shrink-0" />
+                          <MapPin size={11} className="text-gray-400 shrink-0" />
                           {u.site_location || '—'}
                         </span>
                       </td>
 
-                      {/* Phone */}
+                      {/* Contact (phone + email) */}
                       <td className="py-3.5 px-5">
-                        <span className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 font-medium">
-                          <Phone size={11} className="text-gray-400 dark:text-gray-500 shrink-0" />
-                          {u.phone || '—'}
-                        </span>
+                        <div className="space-y-1">
+                          <span className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 font-medium">
+                            <Phone size={11} className="text-gray-400 shrink-0" />
+                            {u.phone || '—'}
+                          </span>
+                          {u.email && (
+                            <span className="flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500">
+                              <Mail size={11} className="text-gray-300 dark:text-gray-600 shrink-0" />
+                              {u.email}
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       {/* Role */}
@@ -621,11 +671,10 @@ export default function StaffDetails() {
                         </span>
                       </td>
 
-                      {/* Actions — ⋮ dropdown */}
+                      {/* Actions */}
                       <td className="py-3.5 px-5">
                         <div className="relative" onClick={e => e.stopPropagation()}>
-                          <button
-                            onClick={() => setOpenMenu(openMenu === u.id ? null : u.id)}
+                          <button onClick={() => setOpenMenu(openMenu === u.id ? null : u.id)}
                             className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors">
                             <MoreVertical size={15} />
                           </button>
@@ -657,6 +706,99 @@ export default function StaffDetails() {
                 })}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* ── Tab: Teams view ── */}
+        {dirTab === 'staff' && viewMode === 'teams' && (
+          <div className="p-5 space-y-6">
+            {teamGroups.length === 0 ? (
+              <div className="text-center py-14 text-gray-400 dark:text-gray-600">
+                <Users size={32} className="mx-auto mb-2 opacity-30" />
+                <p className="text-sm font-medium">No staff found</p>
+              </div>
+            ) : teamGroups.map(team => (
+              <div key={team.key}>
+                {/* Team header */}
+                <div className="flex items-center gap-2 mb-3">
+                  <h3 className="text-sm font-black text-gray-700 dark:text-gray-200">{team.label}</h3>
+                  <span className="w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-[10px] font-black flex items-center justify-center">
+                    {team.members.length}
+                  </span>
+                  <div className="flex-1 h-px bg-gray-100 dark:bg-gray-800" />
+                </div>
+                {/* Member cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                  {team.members.map(u => {
+                    const name = `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.username;
+                    return (
+                      <div key={u.id}
+                        className="bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl p-3.5 flex flex-col gap-2.5 hover:shadow-md transition-shadow">
+                        <div className="flex items-center gap-3">
+                          <Avatar name={name} size={10} />
+                          <div className="min-w-0">
+                            <p className="font-bold text-gray-800 dark:text-white text-sm leading-tight truncate">{name}</p>
+                            <p className="text-[10px] text-gray-400 dark:text-gray-500 truncate mt-0.5">
+                              {u.employee_id || u.username}
+                              {u.position ? ` · ${u.position}` : ''}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="space-y-1.5">
+                          {u.phone && (
+                            <span className="flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-gray-400">
+                              <Phone size={10} className="text-gray-400 shrink-0" />{u.phone}
+                            </span>
+                          )}
+                          {u.email && (
+                            <span className="flex items-center gap-1.5 text-[11px] text-gray-400 dark:text-gray-500">
+                              <Mail size={10} className="text-gray-300 dark:text-gray-600 shrink-0" />{u.email}
+                            </span>
+                          )}
+                          {u.site_location && (
+                            <span className="flex items-center gap-1.5 text-[11px] text-gray-400 dark:text-gray-500">
+                              <MapPin size={10} className="text-gray-300 dark:text-gray-600 shrink-0" />{u.site_location}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center justify-between pt-1.5 border-t border-gray-50 dark:border-gray-700">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            u.role === 'admin'
+                              ? 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400'
+                              : 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400'
+                          }`}>
+                            {u.role === 'super_admin' ? 'Super Admin' : u.role.charAt(0).toUpperCase() + u.role.slice(1)}
+                          </span>
+                          <div className="relative" onClick={e => e.stopPropagation()}>
+                            <button onClick={() => setOpenMenu(openMenu === u.id ? null : u.id)}
+                              className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
+                              <MoreVertical size={13} />
+                            </button>
+                            {openMenu === u.id && (
+                              <div className="absolute right-0 bottom-7 z-30 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-100 dark:border-gray-700 py-1 w-40 text-sm">
+                                <button onClick={() => openEdit(u)}
+                                  className="flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 text-xs transition-colors">
+                                  <Edit2 size={11} className="text-blue-500" /> Edit
+                                </button>
+                                <button onClick={() => handleRoleToggle(u)}
+                                  className={`flex items-center gap-2 w-full px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 text-xs transition-colors ${u.role === 'admin' ? 'text-amber-600' : 'text-emerald-600'}`}>
+                                  {u.role === 'admin' ? <><ShieldOff size={11} /> Remove Admin</> : <><ShieldCheck size={11} /> Make Admin</>}
+                                </button>
+                                <div className="h-px bg-gray-100 dark:bg-gray-700 mx-2 my-1" />
+                                <button onClick={() => handleDelete(u.id)}
+                                  className="flex items-center gap-2 w-full px-3 py-2 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500 text-xs transition-colors">
+                                  <Trash2 size={11} /> Delete
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
         )}
 

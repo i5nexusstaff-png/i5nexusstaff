@@ -8,6 +8,12 @@
   padding: 0;
 }
 
+/* ── Font-size scaling (applied to <html> via FontSizeContext) ─────────────── */
+html.fs-sm { font-size: 13px; }
+html.fs-md { font-size: 15px; }
+html.fs-lg { font-size: 17px; }
+html.fs-xl { font-size: 19px; }
+
 html {
   overflow-x: hidden;
   width: 100%;

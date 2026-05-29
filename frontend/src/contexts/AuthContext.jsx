@@ -21,6 +21,7 @@ export function AuthProvider({ children }) {
     localStorage.setItem('access_token', data.access);
     localStorage.setItem('refresh_token', data.refresh);
     localStorage.setItem('user_data', JSON.stringify(data.user));
+    if (data.session_key) localStorage.setItem('session_key', data.session_key);
     setUser(data.user);
     return data.user;
   };

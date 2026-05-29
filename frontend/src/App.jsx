@@ -2,6 +2,7 @@ import { Component } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
+import { FontSizeProvider } from './contexts/FontSizeContext';
 import { ConfirmProvider } from './components/ConfirmDialog';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
@@ -105,6 +106,7 @@ export default function App() {
   return (
     <AppErrorBoundary>
     <ThemeProvider>
+      <FontSizeProvider>
       <ConfirmProvider>
       <BrowserRouter>
         <AuthProvider>
@@ -159,6 +161,7 @@ export default function App() {
         </AuthProvider>
       </BrowserRouter>
       </ConfirmProvider>
+      </FontSizeProvider>
     </ThemeProvider>
     </AppErrorBoundary>
   );

@@ -3,6 +3,7 @@ from django.db import models
 from django.utils import timezone
 import datetime
 import secrets
+import uuid
 
 
 REPORT_TYPE_CHOICES = [
@@ -93,3 +94,56 @@ class CompanyProfile(models.Model):
 
     def __str__(self):
         return self.company_name or 'Company Profile'
+
+
+def _parse_device(ua: str) -> str:
+    """Return a human-readable device description from a User-Agent string."""
+    ua_lower = ua.lower()
+    # Browser detection (order matters)
+    if 'edg/' in ua_lower or 'edga/' in ua_lower:
+        browser = 'Edge'
+    elif 'opr/' in ua_lower or 'opera' in ua_lower:
+        browser = 'Opera'
+    elif 'chrome/' in ua_lower and 'chromium' not in ua_lower:
+        browser = 'Chrome'
+    elif 'firefox/' in ua_lower:
+        browser = 'Firefox'
+    elif 'safari/' in ua_lower:
+        browser = 'Safari'
+    else:
+        browser = 'Browser'
+
+    # OS detection
+    if 'android' in ua_lower:
+        os_name = 'Android'
+    elif 'iphone' in ua_lower:
+        os_name = 'iPhone'
+    elif 'ipad' in ua_lower:
+        os_name = 'iPad'
+    elif 'windows' in ua_lower:
+        os_name = 'Windows'
+    elif 'macintosh' in ua_lower or 'mac os' in ua_lower:
+        os_name = 'macOS'
+    elif 'linux' in ua_lower:
+        os_name = 'Linux'
+    else:
+        os_name = 'Unknown'
+
+    return f'{browser} on {os_name}'
+
+
+class UserSession(models.Model):
+    """Tracks active login sessions for each user (one per device/browser login)."""
+    user         = models.ForeignKey('accounts.User', on_delete=models.CASCADE, related_name='login_sessions')
+    session_key  = models.UUIDField(default=uuid.uuid4, unique=True, editable=False, db_index=True)
+    device_name  = models.CharField(max_length=300, blank=True)
+    ip_address   = models.GenericIPAddressField(null=True, blank=True)
+    user_agent   = models.TextField(blank=True)
+    created_at   = models.DateTimeField(auto_now_add=True)
+    last_active  = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-last_active']
+
+    def __str__(self):
+        return f'{self.user.username} — {self.device_name}'
