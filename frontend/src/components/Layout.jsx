@@ -27,9 +27,10 @@ const superAdminNav = [
 
 const adminNav = [
   { to: '/admin/staff',                 icon: Users,           label: 'Staff Details' },
+  { to: '/admin/attendance',            icon: Clock,           label: 'Attendance' },
+  { to: '/admin/leaves',                icon: CalendarCheck,   label: 'Leave Requests' },
   { to: '/admin/reports',               icon: FileText,        label: 'Reports' },
   { to: '/admin/feedback',              icon: MessageSquare,   label: 'Feedback' },
-  { to: '/admin/attendance',            icon: Clock,           label: 'Attendance' },
   { to: '/admin/todos',                 icon: CheckSquare,     label: 'To-Do List' },
   { to: '/admin/tutorials',             icon: BookOpen,        label: 'Tutorials' },
   { to: '/admin/projects',              icon: FolderKanban,    label: 'Projects' },

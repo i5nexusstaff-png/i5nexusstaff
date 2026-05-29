@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Clock, MapPin, CheckCircle, XCircle, Eye, X, UserCheck,
-         ExternalLink, Image, Users, Shield } from 'lucide-react';
+         ExternalLink, Image, Users, Shield, LayoutGrid } from 'lucide-react';
 import { attendanceApi, usersApi, officeLocationsApi } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import AttendanceCamera from '../../components/AttendanceCamera';
@@ -139,15 +139,50 @@ function RecordsTable({ records, openModal }) {
   );
 }
 
+/* ── Team definitions (mirrors StaffDetails teams view) ── */
+const TEAMS = [
+  { key: 'sales_ho',   label: 'Sales — Head Office',  dept: 'Sales',            loc: 'Head Office' },
+  { key: 'sales_tam',  label: 'Sales — Tambaram',     dept: 'Sales',            loc: 'Tambaram'    },
+  { key: 'sales_avi',  label: 'Sales — Auroville',    dept: 'Sales',            loc: 'Auroville'   },
+  { key: 'presales',   label: 'Presales',             dept: 'Presales',         loc: null          },
+  { key: 'digital',    label: 'Digital Marketing',    dept: 'Digital Marketing',loc: null          },
+  { key: 'legal',      label: 'Legal',                dept: 'Legal',            loc: null          },
+  { key: 'hr',         label: 'Human Resources',      dept: 'Human Resources',  loc: null          },
+  { key: 'admin_dept', label: 'Administration',       dept: 'Administration',   loc: null          },
+  { key: 'accounts',   label: 'Accounts',             dept: 'Accounts',         loc: null          },
+  { key: 'management', label: 'Management',           dept: 'Management',       loc: null          },
+];
+
+function matchTeam(record, teamKey) {
+  if (!teamKey) return true;
+  const t = TEAMS.find(x => x.key === teamKey);
+  if (!t) return true;
+  const dept = record.user_detail?.department || '';
+  const loc  = record.user_detail?.site_location || '';
+  if (t.dept !== dept) return false;
+  if (t.loc  && t.loc !== loc) return false;
+  return true;
+}
+
 /* ── Filter row (shared) ── */
-function FilterRow({ filters, setFilters, userList, allLabel }) {
+function FilterRow({ filters, setFilters, userList, allLabel, teamFilter, setTeamFilter, showTeam }) {
   return (
     <div className="flex flex-wrap gap-3 mb-5">
+      {/* Team filter */}
+      {showTeam && setTeamFilter && (
+        <select value={teamFilter || ''}
+          onChange={e => setTeamFilter(e.target.value)}
+          className="flex items-center gap-1.5 border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30">
+          <option value="">All Teams</option>
+          {TEAMS.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
+        </select>
+      )}
+      {/* Staff picker */}
       {userList && (
         <select value={filters.user_id || ''}
           onChange={e => setFilters(f => ({ ...f, user_id: e.target.value }))}
           className="border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30">
-          <option value="">{allLabel || 'All'}</option>
+          <option value="">{allLabel || 'All Staff'}</option>
           {userList.map(s => <option key={s.id} value={s.id}>{s.full_name || s.username}</option>)}
         </select>
       )}
@@ -179,6 +214,7 @@ export default function AdminAttendance() {
   /* ── Staff records (both roles) ── */
   const [records,    setRecords]    = useState([]);
   const [staffUsers, setStaffUsers] = useState([]);
+  const [teamFilter, setTeamFilter] = useState('');    // team filter for staff records
   const [filters,    setFilters]    = useState({
     user_id: '', date: '',
     month: new Date().getMonth() + 1,
@@ -388,8 +424,20 @@ export default function AdminAttendance() {
               setFilters={setFilters}
               userList={staffUsers}
               allLabel={isSuperAdmin ? 'All Users' : 'All Staff'}
+              teamFilter={teamFilter}
+              setTeamFilter={setTeamFilter}
+              showTeam={true}
             />
-            <RecordsTable records={records} openModal={openModal} />
+            <RecordsTable
+              records={records.filter(r => matchTeam(r, teamFilter))}
+              openModal={openModal}
+            />
+            {teamFilter && (
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-2 text-right">
+                Showing {records.filter(r => matchTeam(r, teamFilter)).length} of {records.length} records
+                for <span className="font-semibold text-gray-600 dark:text-gray-300">{TEAMS.find(t=>t.key===teamFilter)?.label}</span>
+              </p>
+            )}
           </>
         )}
 

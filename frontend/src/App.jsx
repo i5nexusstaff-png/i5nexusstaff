@@ -133,6 +133,7 @@ export default function App() {
             <Route path="/admin/reports" element={<AdminLayout><AdminReports /></AdminLayout>} />
             <Route path="/admin/feedback" element={<AdminLayout><AdminFeedback /></AdminLayout>} />
             <Route path="/admin/attendance" element={<AdminLayout><AdminAttendance /></AdminLayout>} />
+            <Route path="/admin/leaves" element={<AdminLayout><AdminLeaves /></AdminLayout>} />
             <Route path="/admin/todos" element={<AdminLayout><AdminTodos /></AdminLayout>} />
             <Route path="/admin/tutorials" element={<AdminLayout><AdminTutorials /></AdminLayout>} />
             <Route path="/admin/projects" element={<AdminLayout><AdminProjects /></AdminLayout>} />

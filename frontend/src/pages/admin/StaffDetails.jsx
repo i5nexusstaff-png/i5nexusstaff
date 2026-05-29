@@ -921,40 +921,6 @@ export default function StaffDetails() {
         )}
       </div>
 
-      {/* ── Mobile card fallback (for very small screens on Employee List) ── */}
-      {dirTab === 'staff' && (
-        <div className="sm:hidden space-y-3 -mt-3">
-          {filtered.map(u => {
-            const name = `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.username;
-            return (
-              <div key={`m-${u.id}`} className="bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-700 rounded-2xl shadow-sm p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Avatar name={name} size={10} />
-                    <div>
-                      <p className="font-bold text-gray-800 dark:text-white text-sm">{name}</p>
-                      <p className="text-[11px] text-gray-400 dark:text-gray-500">{u.employee_id} · {u.position || u.department}</p>
-                    </div>
-                  </div>
-                  <div className="flex gap-1">
-                    <button onClick={() => openEdit(u)} className="p-1.5 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg"><Edit2 size={14} /></button>
-                    <button onClick={() => handleRoleToggle(u)}
-                      className={`p-1.5 rounded-lg ${u.role === 'admin' ? 'text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20' : 'text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20'}`}>
-                      {u.role === 'admin' ? <ShieldOff size={14} /> : <ShieldCheck size={14} />}
-                    </button>
-                    <button onClick={() => handleDelete(u.id)} className="p-1.5 text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"><Trash2 size={14} /></button>
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-2 mt-3">
-                  <DeptBadge dept={u.department} />
-                  <span className="flex items-center gap-1 text-[11px] text-gray-500 dark:text-gray-400"><MapPin size={10} />{u.site_location}</span>
-                  {u.phone && <span className="flex items-center gap-1 text-[11px] text-gray-500 dark:text-gray-400"><Phone size={10} />{u.phone}</span>}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
 
       {/* ── Add / Edit Modal (unchanged) ── */}
       {showModal && (
