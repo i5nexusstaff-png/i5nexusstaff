@@ -45,25 +45,31 @@ class CustomTokenObtainPairView(TokenObtainPairView):
     throttle_classes = [AuthRateThrottle]
 
     def post(self, request, *args, **kwargs):
-        response = super().post(request, *args, **kwargs)
-        if response.status_code == 200:
-            ua = request.META.get('HTTP_USER_AGENT', '')
-            ip = (request.META.get('HTTP_X_FORWARDED_FOR', '').split(',')[0].strip()
-                  or request.META.get('REMOTE_ADDR', ''))
+        # Validate credentials — raises 401 automatically on failure
+        serializer = self.get_serializer(data=request.data)
+        try:
+            serializer.is_valid(raise_exception=True)
+        except Exception:
+            raise
+
+        # Build response data and append session key
+        data = dict(serializer.validated_data)
+        try:
+            ua  = request.META.get('HTTP_USER_AGENT', '')
+            ip  = (request.META.get('HTTP_X_FORWARDED_FOR', '').split(',')[0].strip()
+                   or request.META.get('REMOTE_ADDR', ''))
             session = UserSession.objects.create(
-                user=self.get_serializer().user,
+                user=serializer.user,
                 device_name=_parse_device(ua),
                 ip_address=ip or None,
                 user_agent=ua[:500],
             )
-            response.data['session_key'] = str(session.session_key)
-        return response
+            data['session_key'] = str(session.session_key)
+        except Exception:
+            # Never let session tracking block a successful login
+            pass
 
-    def get_serializer(self):
-        # Cache the serializer so self.user is accessible after super().post()
-        if not hasattr(self, '_serializer'):
-            self._serializer = super().get_serializer()
-        return self._serializer
+        return Response(data, status=status.HTTP_200_OK)
 
 
 class UserViewSet(viewsets.ModelViewSet):
