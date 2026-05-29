@@ -8,15 +8,25 @@
   padding: 0;
 }
 
+html {
+  overflow-x: hidden;
+  width: 100%;
+}
+
 body {
   font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
   background-color: #f1f5f9;
   color: #1e293b;
+  overflow-x: hidden;
+  width: 100%;
+  /* Prevent iOS rubber-band horizontal scroll revealing bg */
+  position: relative;
 }
 
 #root {
   width: 100%;
   min-height: 100vh;
+  overflow-x: hidden;
 }
 
 @layer components {
@@ -205,6 +215,12 @@ body {
 /* ── Hide bottom-nav scrollbar on mobile ── */
 .hide-scrollbar::-webkit-scrollbar { display: none; }
 .hide-scrollbar { scrollbar-width: none; }
+
+/* ── Confirm dialog scale-in animation ── */
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.92); }
+  to   { opacity: 1; transform: scale(1); }
+}
 
 /* ── Leaflet + Tailwind compatibility ──────────────────────────────
    Tailwind Preflight sets img { max-width: 100% } which shrinks

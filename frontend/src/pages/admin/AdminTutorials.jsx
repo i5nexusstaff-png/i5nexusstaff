@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { Plus, Trash2, X, RefreshCw, AlertTriangle, ChevronDown } from 'lucide-react';
 import { tutorialsApi } from '../../services/api';
 import { VideoCard, VideoModal, FilterBar } from '../../components/TutorialsShared';
+import { useConfirm } from '../../components/ConfirmDialog';
 
 function YTIcon({ size = 24, className = '' }) {
   return (
@@ -28,6 +29,7 @@ function extractVideoId(url) {
 const EMPTY_FORM = { title: '', youtube_url: '', description: '' };
 
 export default function AdminTutorials() {
+  const confirm = useConfirm();
   const [videos,    setVideos]    = useState([]);
   const [loading,   setLoading]   = useState(true);
   const [search,    setSearch]    = useState('');
@@ -37,7 +39,6 @@ export default function AdminTutorials() {
   const [form,      setForm]      = useState(EMPTY_FORM);
   const [saving,    setSaving]    = useState(false);
   const [formErr,   setFormErr]   = useState('');
-  const [delTarget, setDelTarget] = useState(null);
   const [deleting,  setDeleting]  = useState(false);
 
   const load = useCallback(async () => {
@@ -82,13 +83,18 @@ export default function AdminTutorials() {
     } catch { /* ignore */ }
   };
 
-  const confirmDelete = async () => {
-    if (!delTarget) return;
+  const handleDelete = async (video) => {
+    const ok = await confirm({
+      title: 'Delete video?',
+      message: `"${video.title}" will be permanently removed for all users.`,
+      variant: 'danger',
+      confirmText: 'Delete',
+    });
+    if (!ok) return;
     setDeleting(true);
     try {
-      await tutorialsApi.delete(delTarget.id);
-      setVideos(prev => prev.filter(v => v.id !== delTarget.id));
-      setDelTarget(null);
+      await tutorialsApi.delete(video.id);
+      setVideos(prev => prev.filter(v => v.id !== video.id));
     } catch { alert('Delete failed.'); }
     finally { setDeleting(false); }
   };
@@ -159,7 +165,7 @@ export default function AdminTutorials() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {filtered.map(video => (
-            <VideoCard key={video.id} video={video} onPlay={handlePlay} onDelete={setDelTarget} canDelete />
+            <VideoCard key={video.id} video={video} onPlay={handlePlay} onDelete={handleDelete} canDelete />
           ))}
         </div>
       )}
@@ -259,32 +265,6 @@ export default function AdminTutorials() {
         </div>
       )}
 
-      {/* ════ DELETE CONFIRM ════ */}
-      {delTarget && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-sm ring-1 ring-black/10 dark:ring-white/10">
-            <div className="p-6 text-center">
-              <div className="w-14 h-14 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Trash2 size={24} className="text-red-500" />
-              </div>
-              <h3 className="font-black text-gray-800 dark:text-white text-lg mb-2">Delete Video?</h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">
-                "<span className="font-semibold text-gray-700 dark:text-gray-200">{delTarget.title}</span>" will be permanently removed.
-              </p>
-              <div className="flex gap-3">
-                <button onClick={() => setDelTarget(null)} disabled={deleting}
-                  className="flex-1 py-2.5 text-sm border border-gray-200 dark:border-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors font-medium disabled:opacity-50">
-                  Cancel
-                </button>
-                <button onClick={confirmDelete} disabled={deleting}
-                  className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-bold bg-red-500 hover:bg-red-600 text-white rounded-xl transition-all shadow-md shadow-red-500/20 disabled:opacity-60">
-                  {deleting ? <><RefreshCw size={14} className="animate-spin" /> Deleting…</> : <><Trash2 size={14} /> Delete</>}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useConfirm } from './ConfirmDialog';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -61,6 +62,7 @@ export default function Layout({ children, role }) {
   const { dark, toggle }  = useTheme();
   const navigate          = useNavigate();
   const location          = useLocation();
+  const confirm           = useConfirm();
 
   const [collapsed,  setCollapsed]  = useState(true);   // desktop sidebar
   const [mobileOpen, setMobileOpen] = useState(false);  // mobile overlay
@@ -92,7 +94,15 @@ export default function Layout({ children, role }) {
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  const handleLogout = () => { logout(); navigate('/login'); };
+  const handleLogout = async () => {
+    const ok = await confirm({
+      title: 'Sign out?',
+      message: 'You will be returned to the login screen.',
+      variant: 'logout',
+      confirmText: 'Sign Out',
+    });
+    if (ok) { logout(); navigate('/login'); }
+  };
   const userInitial  = (user?.full_name || user?.username || 'U')[0].toUpperCase();
 
   // ─── shared nav item renderer ────────────────────────────────────────────

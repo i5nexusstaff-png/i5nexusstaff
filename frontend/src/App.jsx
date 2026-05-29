@@ -2,6 +2,7 @@ import { Component } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
+import { ConfirmProvider } from './components/ConfirmDialog';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
 
@@ -104,6 +105,7 @@ export default function App() {
   return (
     <AppErrorBoundary>
     <ThemeProvider>
+      <ConfirmProvider>
       <BrowserRouter>
         <AuthProvider>
           <Routes>
@@ -156,6 +158,7 @@ export default function App() {
           </Routes>
         </AuthProvider>
       </BrowserRouter>
+      </ConfirmProvider>
     </ThemeProvider>
     </AppErrorBoundary>
   );

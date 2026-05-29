@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useConfirm } from '../../components/ConfirmDialog';
 import { Plus, Trash2, Tag, ToggleLeft, ToggleRight, X, Edit2, Zap, Clock, Star } from 'lucide-react';
 import { offersApi } from '../../services/api';
 
@@ -135,6 +136,7 @@ function OfferCard({ offer, onToggle, onDelete, onEdit }) {
 }
 
 export default function AdminOffers() {
+  const confirm = useConfirm();
   const [offers, setOffers]     = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId]     = useState(null);
@@ -189,7 +191,13 @@ export default function AdminOffers() {
   };
 
   const handleDelete = async (id) => {
-    if (!confirm('Delete this offer?')) return;
+    const ok = await confirm({
+      title: 'Delete offer?',
+      message: 'This offer will be removed from the staff banner feed immediately.',
+      variant: 'danger',
+      confirmText: 'Delete',
+    });
+    if (!ok) return;
     await offersApi.delete(id);
     load();
   };

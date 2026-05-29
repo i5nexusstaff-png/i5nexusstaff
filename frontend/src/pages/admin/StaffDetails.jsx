@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useConfirm } from '../../components/ConfirmDialog';
 import {
   Plus, Trash2, Edit2, Search, X, ShieldCheck, ShieldOff,
   FileSpreadsheet, Users, Clock, CalendarCheck, ChevronRight,
@@ -122,6 +123,7 @@ function AttBadge({ punchIn }) {
 
 // ════════════════════════════════════════════════════════════════════════════════
 export default function StaffDetails() {
+  const confirm = useConfirm();
   // ── Existing state (unchanged) ────────────────────────────────────────────
   const [users,    setUsers]    = useState([]);
   const [search,   setSearch]   = useState('');
@@ -191,16 +193,28 @@ export default function StaffDetails() {
   };
 
   const handleDelete = async (id) => {
-    if (!confirm('Delete this staff member? This cannot be undone.')) return;
+    const ok = await confirm({
+      title: 'Delete staff member?',
+      message: 'This will permanently remove the account and all associated data. This cannot be undone.',
+      variant: 'danger',
+      confirmText: 'Delete',
+    });
+    if (!ok) return;
     await usersApi.delete(id); load(); setOpenMenu(null);
   };
 
   const handleRoleToggle = async (u) => {
     const newRole = u.role === 'admin' ? 'staff' : 'admin';
-    const msg = newRole === 'admin'
-      ? `Promote ${u.first_name} to Admin? They will get full admin access.`
-      : `Remove Admin from ${u.first_name}? They will revert to staff access.`;
-    if (!confirm(msg)) return;
+    const isPromote = newRole === 'admin';
+    const ok = await confirm({
+      title: isPromote ? `Promote to Admin?` : `Remove Admin access?`,
+      message: isPromote
+        ? `${u.full_name || u.username} will get full admin access to manage staff, reports, and bookings.`
+        : `${u.full_name || u.username} will revert to staff access and lose admin privileges.`,
+      variant: isPromote ? 'confirm' : 'warning',
+      confirmText: isPromote ? 'Promote' : 'Remove Admin',
+    });
+    if (!ok) return;
     try { await usersApi.setRole(u.id, newRole); load(); }
     catch (e) { alert('Error: ' + (e.response?.data?.error || e.message)); }
     setOpenMenu(null);

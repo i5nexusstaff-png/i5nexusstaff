@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Plus, Calendar, Clock, CheckCircle, XCircle } from 'lucide-react';
 import { leavesApi } from '../../services/api';
+import { useConfirm } from '../../components/ConfirmDialog';
 
 const TYPE_META = {
   casual:  { color: 'from-blue-500 to-indigo-600',    badge: 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800' },
@@ -22,6 +23,7 @@ const dayCount = (s, e) => {
 };
 
 export default function StaffLeaves() {
+  const confirm = useConfirm();
   const [leaves, setLeaves]   = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm]       = useState({ leave_type: 'casual', start_date: '', end_date: '', reason: '' });
@@ -33,6 +35,14 @@ export default function StaffLeaves() {
   const handleSubmit = async () => {
     if (!form.start_date || !form.end_date) return alert('Start and end dates are required');
     if (form.end_date < form.start_date) return alert('End date must be after start date');
+    const days = dayCount(form.start_date, form.end_date);
+    const ok = await confirm({
+      title: 'Submit leave request?',
+      message: `${days} day${days !== 1 ? 's' : ''} of ${form.leave_type} leave from ${form.start_date} to ${form.end_date}.`,
+      variant: 'confirm',
+      confirmText: 'Submit Request',
+    });
+    if (!ok) return;
     setSubmitting(true);
     try {
       await leavesApi.create(form);

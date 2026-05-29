@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useConfirm } from '../../components/ConfirmDialog';
 import {
   Trash2, Image, X, ToggleLeft, ToggleRight, Eye,
   ImagePlus, Layers, Info, Crop, CheckCircle,
@@ -54,6 +55,7 @@ const cropTo16x5 = (file) =>
 
 // ─────────────────────────────────────────────────────────────────────────────
 export default function AdminBanners() {
+  const confirm = useConfirm();
   const [banners,    setBanners]    = useState([]);
   const [showForm,   setShowForm]   = useState(false);
   const [form,       setForm]       = useState({ title: '', subtitle: '', order: 0 });
@@ -127,7 +129,13 @@ export default function AdminBanners() {
   };
 
   const handleDelete = async (id) => {
-    if (!confirm('Delete this banner?')) return;
+    const ok = await confirm({
+      title: 'Delete banner?',
+      message: 'This banner will be removed from the staff app immediately.',
+      variant: 'danger',
+      confirmText: 'Delete',
+    });
+    if (!ok) return;
     await bannersApi.delete(id);
     load();
   };

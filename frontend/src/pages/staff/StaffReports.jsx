@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useConfirm } from '../../components/ConfirmDialog';
 import {
   FileText, Save, Send, CheckCircle, Clock, Edit3, AlertCircle,
   RefreshCw, Calendar, ChevronLeft, ChevronRight, Upload, Download,
@@ -222,6 +223,7 @@ function ImportSection({ reportType, schemaLabel, onDone }) {
 
 // ════════════════════════════════════════════════════════════════════════════
 export default function StaffReports() {
+  const confirm = useConfirm();
   const { user } = useAuth();
 
   const [schema,       setSchema]       = useState(null);
@@ -291,6 +293,15 @@ export default function StaffReports() {
   // ── Save ───────────────────────────────────────────────────────────────────
   const handleSave = async (newStatus) => {
     if (!typeSchema) return;
+    if (newStatus === 'submitted') {
+      const ok = await confirm({
+        title: 'Submit report?',
+        message: 'Once submitted, the report will be locked and sent to your admin for review.',
+        variant: 'confirm',
+        confirmText: 'Submit Report',
+      });
+      if (!ok) return;
+    }
     setSaving(true); setSavingAs(newStatus);
     try {
       const payload = { report_date: selDate, report_type: selType, data: formData, status: newStatus };

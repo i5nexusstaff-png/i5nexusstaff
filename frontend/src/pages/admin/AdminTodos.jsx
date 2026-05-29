@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
+import { useConfirm } from '../../components/ConfirmDialog';
 import {
   Plus, Trash2, Calendar, ChevronLeft, ChevronRight, X,
   MoreHorizontal, GripVertical, AlertCircle, Clock, Search,
@@ -268,6 +269,7 @@ function KanbanColumn({ col, todos, onDelete, onDragStart, onDragOver, onDrop, i
 
 // ════════════════════════════════════════════════════════════════════════════
 export default function AdminTodos() {
+  const confirm = useConfirm();
   const [todos,      setTodos]      = useState([]);
   const [weekOffset, setWeekOffset] = useState(0);
   const [search,     setSearch]     = useState('');
@@ -305,6 +307,13 @@ export default function AdminTodos() {
   }, {});
 
   const handleDelete = async (id) => {
+    const ok = await confirm({
+      title: 'Delete task?',
+      message: 'This task will be permanently removed for all staff.',
+      variant: 'danger',
+      confirmText: 'Delete',
+    });
+    if (!ok) return;
     await todosApi.delete(id);
     load();
   };
