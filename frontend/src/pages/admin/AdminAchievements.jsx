@@ -60,11 +60,24 @@ export default function AdminAchievements() {
 
   const handleSelect = (p) => { setSel(p); loadData(p); };
 
+  const [viewMode, setViewMode] = useState('monthly'); // 'monthly' | 'weekly'
+
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-black text-gray-800 dark:text-white tracking-tight">Achievements</h1>
-        <p className="text-gray-500 dark:text-gray-400 text-sm">Team-based performance tracking &amp; rankings</p>
+      <div className="mb-6 flex items-start justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl font-black text-gray-800 dark:text-white tracking-tight">Achievements</h1>
+          <p className="text-gray-500 dark:text-gray-400 text-sm">Team-based performance tracking &amp; rankings</p>
+        </div>
+        {/* Monthly / Weekly toggle */}
+        <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 p-1 rounded-xl">
+          {[['monthly','📅 Monthly'],['weekly','📆 Weekly']].map(([v,l]) => (
+            <button key={v} onClick={() => setViewMode(v)}
+              className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+                viewMode===v ? 'bg-white dark:bg-gray-700 text-primary shadow-sm' : 'text-gray-500 dark:text-gray-400'
+              }`}>{l}</button>
+          ))}
+        </div>
       </div>
 
       {/* Tab bar */}
@@ -83,9 +96,9 @@ export default function AdminAchievements() {
         })}
       </div>
 
-      {tab === 'overview'  && <OverviewTab  periods={periods} sel={sel} onSelect={handleSelect} data={data} loading={loading} />}
-      {tab === 'rankings'  && <RankingsTab  periods={periods} sel={sel} onSelect={handleSelect} data={data} loading={loading} loadData={loadData} />}
-      {tab === 'upload'    && <UploadTab />}
+      {tab === 'overview'  && <OverviewTab  viewMode={viewMode} periods={periods} sel={sel} onSelect={handleSelect} data={data} loading={loading} />}
+      {tab === 'rankings'  && <RankingsTab  viewMode={viewMode} periods={periods} sel={sel} onSelect={handleSelect} data={data} loading={loading} loadData={loadData} />}
+      {tab === 'upload'    && <UploadTab viewMode={viewMode} />}
       {tab === 'members'   && <MembersTab />}
       {tab === 'history'   && <HistoryTab />}
     </div>
@@ -96,7 +109,7 @@ export default function AdminAchievements() {
 // ════════════════════════════════════════════════════════════════════════════
 // TAB: Overview — Analytics dashboard
 // ════════════════════════════════════════════════════════════════════════════
-function OverviewTab({ periods, sel, onSelect, data, loading }) {
+function OverviewTab({ viewMode, periods, sel, onSelect, data, loading }) {
   // ── Computed analytics ──────────────────────────────────────────────────
   const salesTeams   = data?.sales_teams    || [];
   const presaleTeams = data?.presales_teams || [];
@@ -108,7 +121,6 @@ function OverviewTab({ periods, sel, onSelect, data, loading }) {
                       + presaleTeams.reduce((s, t) => s + (t.members?.length || 0), 0);
 
   const totalVisits   = presaleTeams.reduce((s, t) => s + (t.total_site_visits   || 0), 0);
-  const totalAppts    = presaleTeams.reduce((s, t) => s + (t.total_appointments  || 0), 0);
   const totalMeetings = presaleTeams.reduce((s, t) => s + (t.total_meetings      || 0), 0);
 
   const topTeam = salesTeams[0] || null; // rank 1
@@ -136,7 +148,10 @@ function OverviewTab({ periods, sel, onSelect, data, loading }) {
 
       {/* ── Period selector ── */}
       {periods.length > 0 && (
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap items-center">
+          <span className="text-[10px] font-black uppercase tracking-wider text-gray-400 mr-1">
+            {viewMode === 'weekly' ? 'Pick week' : 'Pick month'}:
+          </span>
           {periods.map(p => (
             <button key={`${p.month}-${p.year}`} onClick={() => onSelect(p)}
               className={`px-4 py-1.5 rounded-full text-sm font-semibold border transition-colors
@@ -328,7 +343,6 @@ function OverviewTab({ periods, sel, onSelect, data, loading }) {
               <div className="grid grid-cols-3 gap-4 mb-4">
                 {[
                   { label: 'Site Visits',   value: totalVisits,   color: 'text-violet-600 dark:text-violet-400', bg: 'bg-violet-50 dark:bg-violet-900/20' },
-                  { label: 'Appointments',  value: totalAppts,    color: 'text-blue-600 dark:text-blue-400',     bg: 'bg-blue-50 dark:bg-blue-900/20' },
                   { label: 'Meetings',      value: totalMeetings, color: 'text-indigo-600 dark:text-indigo-400', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
                 ].map(stat => (
                   <div key={stat.label} className={`${stat.bg} rounded-xl p-3 text-center`}>
@@ -347,8 +361,6 @@ function OverviewTab({ periods, sel, onSelect, data, loading }) {
                     <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400 shrink-0">
                       <span>{team.total_site_visits} visits</span>
                       <span className="text-gray-300 dark:text-gray-600">·</span>
-                      <span>{team.total_appointments} appts</span>
-                      <span className="text-gray-300 dark:text-gray-600">·</span>
                       <span>{team.total_meetings} meetings</span>
                     </div>
                   </div>
@@ -366,7 +378,7 @@ function OverviewTab({ periods, sel, onSelect, data, loading }) {
 // ════════════════════════════════════════════════════════════════════════════
 // TAB: Rankings  — with inline edit / delete / add row
 // ════════════════════════════════════════════════════════════════════════════
-function RankingsTab({ periods, sel, onSelect, data, loading, loadData }) {
+function RankingsTab({ viewMode, periods, sel, onSelect, data, loading, loadData }) {
   const [recalcing,  setRecalcing]  = useState(false);
   const [recalcMsg,  setRecalcMsg]  = useState('');
 
@@ -565,7 +577,7 @@ function SalesBucket({ team, period, onRefresh }) {
           <table className="w-full text-sm min-w-[820px]">
             <thead className="bg-gray-50 dark:bg-gray-800">
               <tr>
-                {['Name','Designation','Visits','Appts','Meetings','Bookings','Reg','Sq.Ft','Units',''].map(h => (
+                {['Name','Designation','Visits','Meetings','Bookings','Reg','Sq.Ft','Units',''].map(h => (
                   <th key={h} className="text-left py-2 px-3 text-gray-400 dark:text-gray-500 font-medium text-xs whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -578,7 +590,7 @@ function SalesBucket({ team, period, onRefresh }) {
                     className="border-t border-gray-50 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors">
                     <td className="py-2 px-3 font-medium text-gray-800 dark:text-white whitespace-nowrap">{m.employee_name}</td>
                     <td className="py-2 px-3 text-gray-500 dark:text-gray-400 whitespace-nowrap text-xs">{m.designation || '—'}</td>
-                    {['site_visits','appointments','meetings','bookings','registrations'].map(f => (
+                    {['site_visits','meetings','bookings','registrations'].map(f => (
                       <td key={f} className="py-2 px-3 text-gray-700 dark:text-gray-300">
                         <NumCell value={m[f]} editing={editing} field={f} draft={draft} setDraft={setDraft}/>
                       </td>
@@ -630,7 +642,6 @@ function SalesBucket({ team, period, onRefresh }) {
               <tr className="border-t-2 border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800/60">
                 <td className="py-2 px-3 font-bold text-gray-700 dark:text-gray-200 text-xs" colSpan={2}>TEAM TOTAL</td>
                 <td className="py-2 px-3 font-bold text-gray-700 dark:text-gray-200">{team.members.reduce((s,m)=>s+m.site_visits,0)}</td>
-                <td className="py-2 px-3 font-bold text-gray-700 dark:text-gray-200">{team.members.reduce((s,m)=>s+m.appointments,0)}</td>
                 <td className="py-2 px-3 font-bold text-gray-700 dark:text-gray-200">{team.members.reduce((s,m)=>s+m.meetings,0)}</td>
                 <td className="py-2 px-3 font-bold text-gray-700 dark:text-gray-200">{team.members.reduce((s,m)=>s+m.bookings,0)}</td>
                 <td className="py-2 px-3 font-bold text-gray-700 dark:text-gray-200">{team.members.reduce((s,m)=>s+m.registrations,0)}</td>
@@ -702,7 +713,6 @@ function PresalesBucket({ team, period, onRefresh }) {
           <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2 mt-0.5">
             <Users size={11}/>{team.members.length} members
             <span>·</span>{team.total_site_visits} visits
-            <span>·</span>{team.total_appointments} appts
             <span>·</span>{team.total_meetings} meetings
           </p>
         </div>
@@ -721,7 +731,7 @@ function PresalesBucket({ team, period, onRefresh }) {
           <table className="w-full text-sm min-w-[500px]">
             <thead className="bg-gray-50 dark:bg-gray-800">
               <tr>
-                {['Name','Designation','Site Visits','Appointments','Meetings',''].map(h => (
+                {['Name','Designation','Site Visits','Meetings',''].map(h => (
                   <th key={h} className="text-left py-2 px-3 text-gray-400 dark:text-gray-500 font-medium text-xs whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -734,7 +744,7 @@ function PresalesBucket({ team, period, onRefresh }) {
                     className="border-t border-gray-50 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors">
                     <td className="py-2 px-3 font-medium text-gray-800 dark:text-white whitespace-nowrap">{m.employee_name}</td>
                     <td className="py-2 px-3 text-gray-500 dark:text-gray-400 text-xs">{m.designation || '—'}</td>
-                    {['site_visits','appointments','meetings'].map(f => (
+                    {['site_visits','meetings'].map(f => (
                       <td key={f} className="py-2 px-3 text-gray-700 dark:text-gray-300">
                         <NumCell value={m[f]} editing={editing} field={f} draft={draft} setDraft={setDraft}/>
                       </td>
@@ -774,7 +784,6 @@ function PresalesBucket({ team, period, onRefresh }) {
               <tr className="border-t-2 border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800/60">
                 <td className="py-2 px-3 font-bold text-gray-700 dark:text-gray-200 text-xs" colSpan={2}>TEAM TOTAL</td>
                 <td className="py-2 px-3 font-bold text-gray-700 dark:text-gray-200">{team.total_site_visits}</td>
-                <td className="py-2 px-3 font-bold text-gray-700 dark:text-gray-200">{team.total_appointments}</td>
                 <td className="py-2 px-3 font-bold text-gray-700 dark:text-gray-200">{team.total_meetings}</td>
                 <td/>
               </tr>
@@ -803,7 +812,7 @@ function AddRowModal({ teamType, teamName, period, members, onClose, onSaved }) 
   const isSales = teamType === 'sales';
   const [memberId, setMemberId] = useState('');
   const [vals, setVals] = useState({
-    site_visits:0, appointments:0, meetings:0,
+    site_visits:0, meetings:0,
     bookings:0, registrations:0, square_feet_sold:0, units_sold:0,
   });
   const [saving, setSaving] = useState(false);
@@ -822,7 +831,7 @@ function AddRowModal({ teamType, teamName, period, members, onClose, onSaved }) 
         month: period.month,
         year:  period.year,
         site_visits: vals.site_visits,
-        appointments: vals.appointments,
+        appointments: 0,
         meetings: vals.meetings,
         ...(isSales ? {
           bookings: vals.bookings,
@@ -861,7 +870,6 @@ function AddRowModal({ teamType, teamName, period, members, onClose, onSaved }) 
           <div className="grid grid-cols-2 gap-3">
             {[
               { f: 'site_visits',   label: 'Site Visits' },
-              { f: 'appointments',  label: 'Appointments' },
               { f: 'meetings',      label: 'Meetings' },
               ...(isSales ? [
                 { f: 'bookings',        label: 'Bookings' },
@@ -1182,7 +1190,7 @@ function AddMemberModal({ onClose, onSaved }) {
 // ════════════════════════════════════════════════════════════════════════════
 // TAB: Upload Data
 // ════════════════════════════════════════════════════════════════════════════
-function UploadTab() {
+function UploadTab({ viewMode = 'monthly' }) {
   const [teamType, setTeamType] = useState('sales');
   const [month,    setMonth]    = useState(nowMonth);
   const [year,     setYear]     = useState(nowYear);
@@ -1248,8 +1256,8 @@ function UploadTab() {
         <h3 className="font-semibold text-gray-700 dark:text-gray-200 mb-3">Which team are you uploading for?</h3>
         <div className="grid grid-cols-2 gap-3">
           {[
-            { val: 'sales',     label: '🏆 Sales Team',     desc: 'Site Visits · Appts · Meetings · Bookings · Reg · Sq.Ft · Units' },
-            { val: 'pre_sales', label: '📋 Pre-Sales Team', desc: 'Site Visits · Appointments · Meetings' },
+            { val: 'sales',     label: '🏆 Sales Team',     desc: 'Site Visits · Meetings · Bookings · Reg · Sq.Ft · Units' },
+            { val: 'pre_sales', label: '📋 Pre-Sales Team', desc: 'Site Visits · Meetings' },
           ].map(opt => (
             <button key={opt.val} onClick={() => { setTeamType(opt.val); setResult(null); setFile(null); }}
               className={`p-4 rounded-xl border-2 text-left transition-all
