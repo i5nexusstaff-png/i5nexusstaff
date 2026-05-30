@@ -39,18 +39,26 @@ const STATUS_CFG = {
 };
 
 const REPORT_ICONS = {
+  sm_bdm:        BarChart2,
+  vp_sales_head: TrendingUp,
+  telecallers:   Phone,
+  marketing:     Megaphone,
+  // legacy
   sales_head: TrendingUp, sales_manager: BarChart2, vp: Target,
-  telecallers_head: Phone, marketing: Megaphone, bdm: Briefcase, telecallers: Users,
+  telecallers_head: Phone, bdm: Briefcase,
 };
 
 const REPORT_COLORS = {
-  sales_head:       { from: '#1E3A5F', to: '#2D6A4F' },
-  sales_manager:    { from: '#1a1a2e', to: '#16213e' },
-  vp:               { from: '#4A0072', to: '#7B1FA2' },
+  sm_bdm:        { from: '#1E3A5F', to: '#1d4ed8' },
+  vp_sales_head: { from: '#4A0072', to: '#7B1FA2' },
+  telecallers:   { from: '#14532D', to: '#166534' },
+  marketing:     { from: '#7F1D1D', to: '#991B1B' },
+  // legacy
+  sales_head: { from: '#1E3A5F', to: '#2D6A4F' },
+  sales_manager: { from: '#1a1a2e', to: '#16213e' },
+  vp: { from: '#4A0072', to: '#7B1FA2' },
   telecallers_head: { from: '#1B4332', to: '#2D6A4F' },
-  marketing:        { from: '#7F1D1D', to: '#991B1B' },
-  bdm:              { from: '#1e3a5f', to: '#1d4ed8' },
-  telecallers:      { from: '#14532D', to: '#166534' },
+  bdm: { from: '#1e3a5f', to: '#1d4ed8' },
 };
 
 const PIE_PALETTE = ['#1E3A5F','#2563eb','#7c3aed','#0891b2','#059669','#d97706','#dc2626'];
@@ -126,6 +134,117 @@ function DateNav({ value, onChange }) {
           className="ml-1 text-xs px-2.5 py-1 bg-accent text-white rounded-lg font-bold hover:opacity-90 transition-all">
           Today
         </button>
+      )}
+    </div>
+  );
+}
+
+// ── Admin Download Section — export all staff data as xlsx ───────────────────
+function AdminDownloadSection({ reportType }) {
+  const [open,      setOpen]      = useState(false);
+  const [period,    setPeriod]    = useState('monthly');
+  const [month,     setMonth]     = useState(todayISO().slice(0, 7));
+  const [weekStart, setWeekStart] = useState(() => {
+    const d = new Date(); d.setDate(d.getDate() - d.getDay() + 1);
+    return d.toISOString().slice(0, 10);
+  });
+  const [loading, setLoading] = useState(false);
+
+  const MONTH_OPTS = (() => {
+    const opts = []; const now = new Date();
+    for (let i = 0; i < 12; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      opts.push({
+        value: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
+        label: d.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }),
+      });
+    }
+    return opts;
+  })();
+
+  const handleDownload = async (allTypes) => {
+    setLoading(true);
+    try {
+      const params = { period };
+      if (!allTypes && reportType) params.report_type = reportType;
+      if (period === 'weekly')  params.week_start = weekStart;
+      if (period === 'monthly') params.month = month;
+      const res = await reportsApi.download(params);
+      const url = URL.createObjectURL(new Blob([res.data]));
+      const a = document.createElement('a'); a.href = url;
+      a.download = `reports_${period === 'weekly' ? weekStart : month}${allTypes ? '_all' : ''}.xlsx`;
+      a.click(); URL.revokeObjectURL(url);
+    } catch { /**/ }
+    setLoading(false);
+  };
+
+  return (
+    <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+      <button onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center">
+            <Download size={14} className="text-white"/>
+          </div>
+          <div className="text-left">
+            <p className="font-bold text-gray-800 dark:text-white text-sm">Download Reports</p>
+            <p className="text-xs text-gray-400 mt-0.5">Export all staff data as Excel — weekly or monthly</p>
+          </div>
+        </div>
+        {open ? <ChevronUp size={16} className="text-gray-400"/> : <ChevronDown size={16} className="text-gray-400"/>}
+      </button>
+
+      {open && (
+        <div className="px-6 pb-6 border-t border-gray-100 dark:border-gray-700">
+          <div className="mt-5 flex flex-wrap gap-3 items-end">
+            {/* Period */}
+            <div>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">Period</p>
+              <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 p-1 rounded-xl">
+                {[['monthly','Monthly'],['weekly','Weekly']].map(([v,l]) => (
+                  <button key={v} onClick={() => setPeriod(v)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                      period === v ? 'bg-white dark:bg-gray-700 shadow-sm text-gray-800 dark:text-white' : 'text-gray-500 dark:text-gray-400'
+                    }`}>{l}</button>
+                ))}
+              </div>
+            </div>
+
+            {period === 'monthly' && (
+              <div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">Month</p>
+                <select value={month} onChange={e => setMonth(e.target.value)}
+                  className="border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-white rounded-xl px-3 py-2 text-sm focus:outline-none">
+                  {MONTH_OPTS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </div>
+            )}
+
+            {period === 'weekly' && (
+              <div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">Week start (Monday)</p>
+                <input type="date" value={weekStart} onChange={e => setWeekStart(e.target.value)}
+                  max={todayISO()}
+                  className="border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-white rounded-xl px-3 py-2 text-sm focus:outline-none"/>
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <button onClick={() => handleDownload(false)} disabled={loading}
+                className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors disabled:opacity-60">
+                {loading ? <RefreshCw size={13} className="animate-spin"/> : <Download size={13}/>}
+                This Report Type
+              </button>
+              <button onClick={() => handleDownload(true)} disabled={loading}
+                className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-colors disabled:opacity-60">
+                <Download size={13}/>All 4 Types
+              </button>
+            </div>
+          </div>
+          <p className="text-[11px] text-gray-400 mt-3">
+            "All 4 Types" generates one Excel with 4 sheets: SM&amp;BDM, VP&amp;SH, Telecallers, Marketing — all staff included.
+          </p>
+        </div>
       )}
     </div>
   );
@@ -813,6 +932,11 @@ export default function AdminReports() {
                 )}
               </div>
             </div>
+          )}
+
+          {/* ── Download Reports (admin) ── */}
+          {selType && typeSchema && (
+            <AdminDownloadSection reportType={selType} />
           )}
 
           {/* Import section */}

@@ -18,23 +18,26 @@ const fmtDate = (iso) =>
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
 const REPORT_ICONS = {
-  sales_head:      TrendingUp,
-  sales_manager:   BarChart2,
-  vp:              Target,
-  telecallers_head: Phone,
-  marketing:       Megaphone,
-  bdm:             Briefcase,
-  telecallers:     Users,
+  sm_bdm:       BarChart2,
+  vp_sales_head: TrendingUp,
+  telecallers:  Phone,
+  marketing:    Megaphone,
+  // legacy keys kept for old data
+  sales_head:   TrendingUp, sales_manager: BarChart2, vp: Target,
+  telecallers_head: Phone, bdm: Briefcase,
 };
 
 const REPORT_COLORS = {
-  sales_head:       { from: '#1E3A5F', to: '#2D6A4F', accent: '#1E3A5F' },
-  sales_manager:    { from: '#1a1a2e', to: '#16213e', accent: '#0f3460' },
-  vp:               { from: '#4A0072', to: '#7B1FA2', accent: '#4A0072' },
+  sm_bdm:        { from: '#1E3A5F', to: '#1d4ed8', accent: '#1E3A5F' },
+  vp_sales_head: { from: '#4A0072', to: '#7B1FA2', accent: '#4A0072' },
+  telecallers:   { from: '#14532D', to: '#166534', accent: '#14532D' },
+  marketing:     { from: '#7F1D1D', to: '#991B1B', accent: '#7F1D1D' },
+  // legacy
+  sales_head: { from: '#1E3A5F', to: '#2D6A4F', accent: '#1E3A5F' },
+  sales_manager: { from: '#1a1a2e', to: '#16213e', accent: '#0f3460' },
+  vp: { from: '#4A0072', to: '#7B1FA2', accent: '#4A0072' },
   telecallers_head: { from: '#1B4332', to: '#2D6A4F', accent: '#1B4332' },
-  marketing:        { from: '#7F1D1D', to: '#991B1B', accent: '#7F1D1D' },
-  bdm:              { from: '#1e3a5f', to: '#1d4ed8', accent: '#1e3a5f' },
-  telecallers:      { from: '#14532D', to: '#166534', accent: '#14532D' },
+  bdm: { from: '#1e3a5f', to: '#1d4ed8', accent: '#1e3a5f' },
 };
 
 const STATUS_CFG = {
@@ -107,6 +110,94 @@ function DateNav({ value, onChange }) {
           className="ml-1 text-xs px-2.5 py-1 bg-accent text-white rounded-lg font-bold hover:opacity-90 transition-all">
           Today
         </button>
+      )}
+    </div>
+  );
+}
+
+// ── Download Section — export own data as xlsx ────────────────────────────────
+function DownloadSection({ reportType }) {
+  const [open,      setOpen]      = useState(false);
+  const [period,    setPeriod]    = useState('monthly');
+  const [month,     setMonth]     = useState(new Date().toISOString().slice(0, 7));
+  const [weekStart, setWeekStart] = useState(() => {
+    const d = new Date(); d.setDate(d.getDate() - d.getDay() + 1);
+    return d.toISOString().slice(0, 10);
+  });
+  const [loading, setLoading] = useState(false);
+
+  const handleDownload = async () => {
+    setLoading(true);
+    try {
+      const params = { period, report_type: reportType };
+      if (period === 'weekly')  params.week_start = weekStart;
+      if (period === 'monthly') params.month = month;
+      const res = await reportsApi.download(params);
+      const url = URL.createObjectURL(new Blob([res.data]));
+      const a = document.createElement('a'); a.href = url;
+      a.download = `my_reports_${period === 'weekly' ? weekStart : month}.xlsx`;
+      a.click(); URL.revokeObjectURL(url);
+    } catch { /* silent */ }
+    setLoading(false);
+  };
+
+  return (
+    <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
+      <button onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center">
+            <Download size={14} className="text-white"/>
+          </div>
+          <div className="text-left">
+            <p className="font-bold text-gray-800 dark:text-white text-sm">Download My Reports</p>
+            <p className="text-xs text-gray-400 mt-0.5">Export your data as Excel — weekly or monthly</p>
+          </div>
+        </div>
+        {open ? <ChevronUp size={16} className="text-gray-400"/> : <ChevronDown size={16} className="text-gray-400"/>}
+      </button>
+
+      {open && (
+        <div className="px-6 pb-6 border-t border-gray-100 dark:border-gray-700">
+          <div className="mt-5 flex flex-wrap gap-3 items-end">
+            {/* Period toggle */}
+            <div>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">Period</p>
+              <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 p-1 rounded-xl">
+                {[['monthly', 'Monthly'], ['weekly', 'Weekly']].map(([v, l]) => (
+                  <button key={v} onClick={() => setPeriod(v)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                      period === v ? 'bg-white dark:bg-gray-700 shadow-sm text-gray-800 dark:text-white' : 'text-gray-500 dark:text-gray-400'
+                    }`}>{l}</button>
+                ))}
+              </div>
+            </div>
+
+            {period === 'monthly' && (
+              <div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">Month</p>
+                <input type="month" value={month} onChange={e => setMonth(e.target.value)}
+                  max={new Date().toISOString().slice(0, 7)}
+                  className="border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20"/>
+              </div>
+            )}
+
+            {period === 'weekly' && (
+              <div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">Week starting (Monday)</p>
+                <input type="date" value={weekStart} onChange={e => setWeekStart(e.target.value)}
+                  max={todayISO()}
+                  className="border border-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20"/>
+              </div>
+            )}
+
+            <button onClick={handleDownload} disabled={loading}
+              className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition-colors disabled:opacity-60">
+              {loading ? <RefreshCw size={13} className="animate-spin"/> : <Download size={13}/>}
+              {loading ? 'Generating…' : 'Download Excel'}
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -246,13 +337,21 @@ export default function StaffReports() {
     toastTimer.current = setTimeout(() => setToast(null), 3500);
   };
 
+  // Map legacy user.report_type values to new 4-type schema keys
+  const LEGACY_MAP = {
+    sales_manager: 'sm_bdm', bdm: 'sm_bdm',
+    sales_head: 'vp_sales_head', vp: 'vp_sales_head',
+    telecallers_head: 'telecallers',
+  };
+
   // ── Load schema once ───────────────────────────────────────────────────────
   useEffect(() => {
     reportsApi.schema().then(r => {
       setSchema(r.data);
-      // default to user's assigned report type, or first available
-      const types = Object.keys(r.data);
-      const def   = user?.report_type && r.data[user.report_type] ? user.report_type : types[0];
+      const types  = Object.keys(r.data);
+      const rawRt  = user?.report_type || '';
+      const mapped = LEGACY_MAP[rawRt] || rawRt;
+      const def    = mapped && r.data[mapped] ? mapped : types[0];
       setSelType(def || '');
     }).finally(() => setLoadingSchema(false));
   }, [user?.report_type]);
@@ -470,6 +569,9 @@ export default function StaffReports() {
                   )}
                 </div>
               </div>
+
+              {/* ── Download my reports ── */}
+              <DownloadSection reportType={selType} />
 
               {/* ── Import Historical Data ── */}
               <ImportSection

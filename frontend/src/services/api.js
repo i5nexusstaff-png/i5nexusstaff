@@ -125,6 +125,11 @@ export const reportsApi = {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
   },
+  // Download weekly or monthly data as xlsx
+  download: (params) => api.get('/reports/download/', {
+    params,
+    responseType: 'blob',
+  }),
 };
 export const feedbackApi = {
   list: () => api.get('/feedback/'),

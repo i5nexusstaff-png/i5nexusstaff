@@ -7,14 +7,11 @@ import uuid
 
 
 REPORT_TYPE_CHOICES = [
-    ('',                'Not Assigned'),
-    ('sales_head',      'Sales Head Report'),
-    ('sales_manager',   'Sales Manager Report'),
-    ('vp',              'VP Report'),
-    ('telecallers_head','Telecallers Head Report'),
-    ('marketing',       'Marketing Report'),
-    ('bdm',             'BDM Report'),
-    ('telecallers',     'Telecallers Report'),
+    ('',             'Not Assigned'),
+    ('sm_bdm',       'SM & BDM Report'),
+    ('vp_sales_head','VP & Sales Head Report'),
+    ('telecallers',  'Telecallers Report'),
+    ('marketing',    'Marketing Report'),
 ]
 
 
