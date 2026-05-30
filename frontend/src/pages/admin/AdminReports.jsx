@@ -391,6 +391,8 @@ function AnalyticsDashboard({ schema, isSuperAdmin }) {
   const [reviewNotes,setReviewNotes]= useState('');
   const [reviewing,  setReviewing]  = useState(false);
   const [toast,      setToast]      = useState(null);
+  const [selUserId,  setSelUserId]  = useState(null);  // null = show all staff
+  const [dlUser,     setDlUser]     = useState(null);  // user being downloaded
   const toastRef = useRef();
 
   const showToast = (msg, ok = true) => {
@@ -417,41 +419,88 @@ function AnalyticsDashboard({ schema, isSuperAdmin }) {
   const typeSchema = schema?.[selType];
   const numFields  = (typeSchema?.fields || []).filter(f => f.type === 'number');
 
-  // ── Aggregations ─────────────────────────────────────────────────────────
-  const totalSubmitted = reports.filter(r => r.status !== 'draft').length;
-  const totalReviewed  = reports.filter(r => r.status === 'reviewed').length;
-  const uniqueStaff    = new Set(reports.map(r => r.user)).size;
+  // ── Per-user grouping ────────────────────────────────────────────────────
+  const userGroups = (() => {
+    const map = {};
+    reports.forEach(r => {
+      const uid = r.user;
+      if (!map[uid]) {
+        map[uid] = {
+          id:        uid,
+          name:      r.user_detail?.full_name || 'Unknown',
+          role:      r.user_detail?.role || '',
+          position:  r.user_detail?.position || '',
+          dept:      r.user_detail?.department || '',
+          reports:   [],
+        };
+      }
+      map[uid].reports.push(r);
+    });
+    return Object.values(map).sort((a, b) => a.name.localeCompare(b.name));
+  })();
+
+  // Reports filtered to the selected user (or all)
+  const visibleReports = selUserId
+    ? reports.filter(r => r.user === selUserId)
+    : reports;
+
+  const selectedUser = selUserId ? userGroups.find(g => g.id === selUserId) : null;
+
+  // Per-user Excel download
+  const downloadUserReports = async (userId) => {
+    setDlUser(userId);
+    try {
+      const res = await reportsApi.download({
+        period:      'monthly',
+        month:       selMonth,
+        user_id:     userId,
+        report_type: selType,
+      });
+      const url = URL.createObjectURL(new Blob([res.data]));
+      const a = document.createElement('a');
+      const u = userGroups.find(g => g.id === userId);
+      const safe = (u?.name || 'staff').replace(/\s+/g,'_').toLowerCase();
+      a.href = url;
+      a.download = `${safe}_${selType}_${selMonth}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch { showToast('Download failed', false); }
+    setDlUser(null);
+  };
+
+  // ── Aggregations (on visibleReports) ─────────────────────────────────────
+  const totalSubmitted = visibleReports.filter(r => r.status !== 'draft').length;
+  const totalReviewed  = visibleReports.filter(r => r.status === 'reviewed').length;
+  const uniqueStaff    = userGroups.length;
   const kpi1Field      = numFields[0];
   const kpi2Field      = numFields[1];
-  const kpi1Total = reports.reduce((s, r) => s + (parseFloat(r.data?.[kpi1Field?.key]) || 0), 0);
-  const kpi2Total = reports.reduce((s, r) => s + (parseFloat(r.data?.[kpi2Field?.key]) || 0), 0);
+  const kpi1Total = visibleReports.reduce((s, r) => s + (parseFloat(r.data?.[kpi1Field?.key]) || 0), 0);
+  const kpi2Total = visibleReports.reduce((s, r) => s + (parseFloat(r.data?.[kpi2Field?.key]) || 0), 0);
 
   // Bar chart: daily totals for first numeric field
   const barData = (() => {
     if (!kpi1Field) return [];
     const byDate = {};
-    reports.forEach(r => {
+    visibleReports.forEach(r => {
       const d = r.report_date;
       const v = parseFloat(r.data?.[kpi1Field.key]) || 0;
       byDate[d] = (byDate[d] || 0) + v;
     });
     return Object.entries(byDate).sort(([a], [b]) => a.localeCompare(b)).map(([d, v]) => ({
-      day: d.slice(8), // DD
+      day: d.slice(8),
       v,
     }));
   })();
 
-  // Donut: distribution across numeric fields
   const pieData = numFields.slice(0, 6).map((f, i) => {
-    const total = reports.reduce((s, r) => s + (parseFloat(r.data?.[f.key]) || 0), 0);
+    const total = visibleReports.reduce((s, r) => s + (parseFloat(r.data?.[f.key]) || 0), 0);
     return { name: f.label, value: total, color: PIE_PALETTE[i % PIE_PALETTE.length] };
   }).filter(d => d.value > 0);
 
-  // Spark series for KPIs
   const sparkFor = (field) => {
     if (!field) return [];
     const byDate = {};
-    reports.forEach(r => {
+    visibleReports.forEach(r => {
       const d = r.report_date;
       byDate[d] = (byDate[d] || 0) + (parseFloat(r.data?.[field.key]) || 0);
     });
@@ -507,7 +556,7 @@ function AnalyticsDashboard({ schema, isSuperAdmin }) {
 
       {/* ── KPI Cards ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard label="Total Reports" value={reports.length} color="#2563eb"
+        <KpiCard label="Total Reports" value={visibleReports.length} color="#2563eb"
           sparkData={barData.map(d => ({ v: d.v }))} icon={FileText}/>
         <KpiCard label="Submitted" value={totalSubmitted} color="#059669"
           sparkData={sparkFor(kpi1Field)} icon={Send}/>
@@ -518,7 +567,7 @@ function AnalyticsDashboard({ schema, isSuperAdmin }) {
       </div>
 
       {/* ── Charts row ── */}
-      {reports.length > 0 && (
+      {visibleReports.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
           {/* Bar chart */}
           <div className="lg:col-span-2 bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm p-5">
@@ -588,68 +637,151 @@ function AnalyticsDashboard({ schema, isSuperAdmin }) {
         </div>
       )}
 
-      {/* ── Submissions table ── */}
-      <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center gap-2">
-          <Clock size={14} className="text-gray-400"/>
-          <p className="font-bold text-gray-700 dark:text-white text-sm">Submissions</p>
-          <span className="ml-1 text-xs bg-gray-100 dark:bg-gray-800 text-gray-500 px-2 py-0.5 rounded-full font-black">{reports.length}</span>
-          <span className="ml-auto text-xs bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-full font-semibold">
-            {totalReviewed} reviewed
-          </span>
+      {/* ── Two-column: Staff list + per-staff table ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4">
+
+        {/* LEFT: Staff list */}
+        <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden flex flex-col lg:max-h-[600px]">
+          <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700 flex items-center gap-2">
+            <Users size={14} className="text-gray-400"/>
+            <p className="font-bold text-gray-700 dark:text-white text-sm">Staff List</p>
+            <span className="ml-auto text-xs bg-gray-100 dark:bg-gray-800 text-gray-500 px-2 py-0.5 rounded-full font-black">{userGroups.length}</span>
+          </div>
+          <div className="overflow-y-auto flex-1">
+            {/* "All staff" option */}
+            <button onClick={() => setSelUserId(null)}
+              className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors border-b border-gray-50 dark:border-gray-800 ${
+                !selUserId ? 'bg-blue-50 dark:bg-blue-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'
+              }`}>
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shrink-0">
+                <Users size={14} className="text-white"/>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className={`text-sm font-bold ${!selUserId ? 'text-blue-700 dark:text-blue-400' : 'text-gray-800 dark:text-white'}`}>All Staff</p>
+                <p className="text-[10px] text-gray-400 dark:text-gray-500">{reports.length} reports combined</p>
+              </div>
+            </button>
+            {/* Per-staff */}
+            {userGroups.length === 0 && !loading && (
+              <div className="text-center py-10 text-gray-400">
+                <Users size={28} className="mx-auto text-gray-300 dark:text-gray-600 mb-2"/>
+                <p className="text-xs font-semibold">No reports yet</p>
+              </div>
+            )}
+            {userGroups.map((u, i) => {
+              const active = selUserId === u.id;
+              const submitted = u.reports.filter(r => r.status !== 'draft').length;
+              return (
+                <button key={u.id} onClick={() => setSelUserId(u.id)}
+                  className={`w-full flex items-center gap-3 px-4 py-3 text-left border-b border-gray-50 dark:border-gray-800 transition-colors ${
+                    active ? 'bg-blue-50 dark:bg-blue-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                  }`}>
+                  <Avatar name={u.name} idx={i}/>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm font-bold truncate ${active ? 'text-blue-700 dark:text-blue-400' : 'text-gray-800 dark:text-white'}`}>{u.name}</p>
+                    <p className="text-[10px] text-gray-400 dark:text-gray-500 truncate capitalize">{u.position || u.dept || u.role}</p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-xs font-black text-gray-700 dark:text-gray-200">{u.reports.length}</p>
+                    {submitted > 0 && submitted !== u.reports.length && (
+                      <p className="text-[9px] text-emerald-500 font-bold">{submitted} sent</p>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         </div>
-        {loading ? (
-          <div className="flex items-center justify-center py-12"><RefreshCw size={22} className="animate-spin text-accent"/></div>
-        ) : reports.length === 0 ? (
-          <div className="flex flex-col items-center py-14 text-gray-400">
-            <FileText size={36} className="mb-3 text-gray-300 dark:text-gray-600"/>
-            <p className="font-semibold">No reports found</p>
-            <p className="text-sm mt-1">Try a different report type or month</p>
+
+        {/* RIGHT: Selected person's reports / all reports table */}
+        <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden flex flex-col">
+          <div className="px-5 py-3.5 border-b border-gray-100 dark:border-gray-700 flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              {selectedUser ? <Avatar name={selectedUser.name} idx={0}/> : <Clock size={14} className="text-gray-400"/>}
+              <div className="min-w-0">
+                <p className="font-bold text-gray-700 dark:text-white text-sm truncate">
+                  {selectedUser ? selectedUser.name : 'All Submissions'}
+                </p>
+                <p className="text-[10px] text-gray-400 truncate">
+                  {selectedUser
+                    ? `${selectedUser.position || selectedUser.dept || selectedUser.role} · ${visibleReports.length} report${visibleReports.length!==1?'s':''}`
+                    : `${reports.length} total · ${totalReviewed} reviewed`
+                  }
+                </p>
+              </div>
+            </div>
+            {selectedUser && (
+              <button onClick={() => downloadUserReports(selectedUser.id)} disabled={dlUser === selectedUser.id}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white text-xs font-bold rounded-lg hover:bg-emerald-700 disabled:opacity-60">
+                {dlUser === selectedUser.id ? <RefreshCw size={11} className="animate-spin"/> : <Download size={11}/>}
+                Download Excel
+              </button>
+            )}
           </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700">
-                <tr>
-                  {['Staff Member', 'Date', 'Status', 'Submitted At',
-                    ...(numFields.slice(0, 2).map(f => f.label)),
-                    'Action'].map((h, i) => (
-                    <th key={i} className="text-left py-3 px-4 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide whitespace-nowrap">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
-                {reports.map((r, idx) => (
-                  <tr key={r.id} className="hover:bg-gray-50/70 dark:hover:bg-gray-800/50 transition-colors">
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-2.5">
-                        <Avatar name={r.user_detail?.full_name || 'U'} idx={idx}/>
-                        <div>
-                          <p className="font-semibold text-gray-800 dark:text-white leading-tight text-xs">{r.user_detail?.full_name || 'Unknown'}</p>
-                          <p className="text-[10px] text-gray-400 capitalize">{r.user_detail?.position || r.user_detail?.role || ''}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap text-xs">{fmtDate(r.report_date)}</td>
-                    <td className="py-3 px-4"><StatusBadge status={r.status}/></td>
-                    <td className="py-3 px-4 text-gray-400 dark:text-gray-500 text-xs whitespace-nowrap">{r.submitted_at ? fmtDate(r.submitted_at) : '—'}</td>
-                    {numFields.slice(0, 2).map(f => (
-                      <td key={f.key} className="py-3 px-4 text-gray-700 dark:text-gray-300 text-xs font-medium">
-                        {r.data?.[f.key] || '—'}
-                      </td>
+          {loading ? (
+            <div className="flex items-center justify-center py-12"><RefreshCw size={22} className="animate-spin text-accent"/></div>
+          ) : visibleReports.length === 0 ? (
+            <div className="flex flex-col items-center py-14 text-gray-400">
+              <FileText size={36} className="mb-3 text-gray-300 dark:text-gray-600"/>
+              <p className="font-semibold">No reports found</p>
+              <p className="text-sm mt-1">Try a different month or report type</p>
+            </div>
+          ) : (
+            <div className="overflow-auto flex-1">
+              <table className="w-full text-sm min-w-[700px]">
+                <thead className="bg-gray-50 dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 sticky top-0 z-10">
+                  <tr>
+                    {!selectedUser && (
+                      <th className="text-left py-3 px-4 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide whitespace-nowrap">Staff</th>
+                    )}
+                    <th className="text-left py-3 px-4 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide whitespace-nowrap">Date</th>
+                    {numFields.map(f => (
+                      <th key={f.key} className="text-center py-3 px-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide whitespace-nowrap min-w-[80px]">
+                        {f.label.split(' ').slice(0,3).join(' ')}
+                      </th>
                     ))}
-                    <td className="py-3 px-4">
-                      <button onClick={() => { setReviewed(r); setReviewNotes(r.admin_notes || ''); }}
-                        className="flex items-center gap-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors">
-                        <Eye size={12}/> Review
-                      </button>
-                    </td>
+                    <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Status</th>
+                    <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Action</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                </thead>
+                <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
+                  {visibleReports.map((r, idx) => (
+                    <tr key={r.id} className="hover:bg-gray-50/70 dark:hover:bg-gray-800/50 transition-colors">
+                      {!selectedUser && (
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-2">
+                            <Avatar name={r.user_detail?.full_name || 'U'} idx={idx}/>
+                            <div className="min-w-0">
+                              <p className="font-semibold text-gray-800 dark:text-white text-xs truncate">{r.user_detail?.full_name || 'Unknown'}</p>
+                              <p className="text-[10px] text-gray-400 capitalize">{r.user_detail?.position || r.user_detail?.role || ''}</p>
+                            </div>
+                          </div>
+                        </td>
+                      )}
+                      <td className="py-3 px-4 font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap text-xs">{fmtDate(r.report_date)}</td>
+                      {numFields.map(f => {
+                        const v = r.data?.[f.key];
+                        const empty = v === undefined || v === null || v === '';
+                        return (
+                          <td key={f.key} className={`py-3 px-3 text-center ${empty ? 'text-gray-300 dark:text-gray-600' : 'font-bold text-gray-800 dark:text-white'}`}>
+                            {empty ? '—' : Number(v).toLocaleString('en-IN')}
+                          </td>
+                        );
+                      })}
+                      <td className="py-3 px-4 text-center"><StatusBadge status={r.status}/></td>
+                      <td className="py-3 px-4 text-center">
+                        <button onClick={() => { setReviewed(r); setReviewNotes(r.admin_notes || ''); }}
+                          className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors">
+                          <Eye size={12}/>View
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ── Review Modal ── */}
