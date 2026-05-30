@@ -801,34 +801,43 @@ export default function AdminReports() {
       <div className="mb-6">
         <h1 className="text-2xl font-black text-gray-800 dark:text-white tracking-tight">Reports</h1>
         <p className="text-gray-400 dark:text-gray-500 text-sm mt-0.5">
-          {isSuperAdmin ? 'All team reports & your own submissions' : 'Team analytics dashboard & your daily report'}
+          {isSuperAdmin
+            ? 'All reports submitted by admin & staff — review and download'
+            : 'Team analytics dashboard & your daily report'}
         </p>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 p-1 rounded-xl w-fit mb-6">
-        {[
-          { key: 'analytics', label: isSuperAdmin ? 'All Reports' : 'Team Analytics', icon: BarChart2 },
-          { key: 'my',        label: 'My Report',    icon: FileText },
-        ].map(({ key, label, icon: Icon }) => (
-          <button key={key} onClick={() => setActiveTab(key)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${
-              activeTab === key
-                ? 'bg-white dark:bg-gray-900 text-gray-800 dark:text-white shadow-sm'
-                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-            }`}>
-            <Icon size={14}/>{label}
-          </button>
-        ))}
-      </div>
+      {/* Tabs — hidden for super admin (only one view) */}
+      {!isSuperAdmin && (
+        <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 p-1 rounded-xl w-fit mb-6">
+          {[
+            { key: 'analytics', label: 'Team Analytics', icon: BarChart2 },
+            { key: 'my',        label: 'My Report',      icon: FileText },
+          ].map(({ key, label, icon: Icon }) => (
+            <button key={key} onClick={() => setActiveTab(key)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${
+                activeTab === key
+                  ? 'bg-white dark:bg-gray-900 text-gray-800 dark:text-white shadow-sm'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+              }`}>
+              <Icon size={14}/>{label}
+            </button>
+          ))}
+        </div>
+      )}
 
-      {/* ═══ TAB: ANALYTICS ═══ */}
-      {activeTab === 'analytics' && schema && (
+      {/* ═══ Super admin: only Analytics ═══ */}
+      {isSuperAdmin && schema && (
         <AnalyticsDashboard schema={schema} isSuperAdmin={isSuperAdmin}/>
       )}
 
-      {/* ═══ TAB: MY REPORT ═══ */}
-      {activeTab === 'my' && (
+      {/* ═══ TAB: ANALYTICS (admin only) ═══ */}
+      {!isSuperAdmin && activeTab === 'analytics' && schema && (
+        <AnalyticsDashboard schema={schema} isSuperAdmin={isSuperAdmin}/>
+      )}
+
+      {/* ═══ TAB: MY REPORT (admin only) ═══ */}
+      {!isSuperAdmin && activeTab === 'my' && (
         <div className="space-y-5">
           {/* Type selector */}
           {schema && (
