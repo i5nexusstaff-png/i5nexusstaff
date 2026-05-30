@@ -62,6 +62,7 @@ import AdminAchievements from './pages/admin/AdminAchievements';
 import AdminLeaves       from './pages/admin/AdminLeaves';
 import AdminOffers       from './pages/admin/AdminOffers';
 import AdminBanners      from './pages/admin/AdminBanners';
+import AdminToolkit     from './pages/admin/AdminToolkit';
 import AdminSettings     from './pages/admin/AdminSettings';
 
 // Staff pages
@@ -77,6 +78,7 @@ import StaffProjects from './pages/staff/StaffProjects';
 import StaffOffers    from './pages/staff/StaffOffers';
 import MadhavamLayout from './pages/MadhavamLayout';
 import StaffSettings  from './pages/staff/StaffSettings';
+import StaffToolkit   from './pages/staff/StaffToolkit';
 
 function SuperAdminLayout({ children }) {
   return (
@@ -125,6 +127,7 @@ export default function App() {
             <Route path="/superadmin/layout/madhavamnagar" element={<SuperAdminLayout><MadhavamLayout /></SuperAdminLayout>} />
             <Route path="/superadmin/reports"    element={<SuperAdminLayout><AdminReports /></SuperAdminLayout>} />
             <Route path="/superadmin/settings"   element={<SuperAdminLayout><AdminSettings /></SuperAdminLayout>} />
+            <Route path="/superadmin/toolkit"    element={<SuperAdminLayout><AdminToolkit /></SuperAdminLayout>} />
 
             {/* Admin routes */}
             <Route path="/admin" element={<Navigate to="/admin/staff" replace />} />
@@ -141,6 +144,7 @@ export default function App() {
             <Route path="/admin/achievements" element={<AdminLayout><AdminAchievements /></AdminLayout>} />
             <Route path="/admin/offers" element={<AdminLayout><AdminOffers /></AdminLayout>} />
             <Route path="/admin/banners"   element={<AdminLayout><AdminBanners /></AdminLayout>} />
+            <Route path="/admin/toolkit"  element={<AdminLayout><AdminToolkit /></AdminLayout>} />
             <Route path="/admin/settings" element={<AdminLayout><AdminSettings /></AdminLayout>} />
 
             {/* Staff routes */}
@@ -156,6 +160,7 @@ export default function App() {
             <Route path="/staff/layout/madhavamnagar" element={<StaffLayout><MadhavamLayout /></StaffLayout>} />
             <Route path="/staff/offers"    element={<StaffLayout><StaffOffers /></StaffLayout>} />
             <Route path="/staff/settings"  element={<StaffLayout><StaffSettings /></StaffLayout>} />
+            <Route path="/staff/toolkit"   element={<StaffLayout><StaffToolkit /></StaffLayout>} />
 
             <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>

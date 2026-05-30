@@ -2,43 +2,15 @@ import { useEffect, useState, useRef } from 'react';
 import { useConfirm } from '../../components/ConfirmDialog';
 import {
   Plus, Trash2, Calendar, ChevronLeft, ChevronRight, X,
-  MoreHorizontal, AlertCircle, Search,
-  CheckCircle2, Circle, Loader2, Users, UserCheck, ChevronDown,
+  AlertCircle, Search, CheckCircle2, Circle, Loader2,
+  Users, UserCheck, ChevronDown,
 } from 'lucide-react';
 import { todosApi, usersApi } from '../../services/api';
 
-// ── Constants ─────────────────────────────────────────────────────────────────
-const COLUMNS = [
-  {
-    key: 'todo',
-    label: 'To-do',
-    badgeCls: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400',
-    headerCls: 'border-t-blue-500',
-    dotColor: '#3b82f6',
-    emptyMsg: 'No pending tasks',
-  },
-  {
-    key: 'in_progress',
-    label: 'In Progress',
-    badgeCls: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400',
-    headerCls: 'border-t-amber-500',
-    dotColor: '#f59e0b',
-    emptyMsg: 'Nothing in progress',
-  },
-  {
-    key: 'done',
-    label: 'Done',
-    badgeCls: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400',
-    headerCls: 'border-t-emerald-500',
-    dotColor: '#10b981',
-    emptyMsg: 'No completed tasks',
-  },
-];
-
 const PRIORITY_META = {
-  high:   { label: 'High',   cls: 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400',     dot: 'bg-red-500' },
+  high:   { label: 'High',   cls: 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400',        dot: 'bg-red-500'   },
   medium: { label: 'Medium', cls: 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400', dot: 'bg-amber-500' },
-  low:    { label: 'Low',    cls: 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400',     dot: 'bg-gray-400' },
+  low:    { label: 'Low',    cls: 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400',        dot: 'bg-gray-400'  },
 };
 
 function getWeekStart(offset = 0) {
@@ -47,17 +19,16 @@ function getWeekStart(offset = 0) {
   return d.toISOString().split('T')[0];
 }
 
-const fmtDate = (d) => new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+const fmtDate = (d) =>
+  new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 
-// ── Add Task Form (inline in column) ─────────────────────────────────────────
-function AddTaskForm({ colKey, weekStart, onDone, onCancel, staffList }) {
-  const [form, setForm] = useState({
-    title: '', description: '', priority: 'medium', due_date: '', status: colKey,
-  });
-  const [assignMode,  setAssignMode]  = useState('all');   // 'all' | 'specific'
-  const [assignedTo,  setAssignedTo]  = useState([]);       // array of user IDs
+// ── Add Task Modal ─────────────────────────────────────────────────────────────
+function AddTaskModal({ weekStart, onDone, onCancel, staffList }) {
+  const [form, setForm]           = useState({ title: '', description: '', priority: 'medium', due_date: '' });
+  const [assignMode, setAssignMode] = useState('all');
+  const [assignedTo, setAssignedTo] = useState([]);
   const [staffSearch, setStaffSearch] = useState('');
-  const [saving,      setSaving]      = useState(false);
+  const [saving, setSaving]         = useState(false);
 
   const filteredStaff = (staffList || []).filter(s =>
     (s.full_name || s.username || '').toLowerCase().includes(staffSearch.toLowerCase())
@@ -71,297 +42,152 @@ function AddTaskForm({ colKey, weekStart, onDone, onCancel, staffList }) {
     if (assignMode === 'specific' && assignedTo.length === 0) return;
     setSaving(true);
     try {
-      const payload = {
+      await todosApi.create({
         ...form,
+        status: 'todo',
         week_start: weekStart,
         assigned_to_all: assignMode === 'all',
         assigned_to: assignMode === 'specific' ? assignedTo : [],
-      };
-      await todosApi.create(payload);
+      });
       onDone();
     } finally { setSaving(false); }
   };
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-600 shadow-lg p-3.5 space-y-2.5 mb-2">
-      <input
-        autoFocus
-        value={form.title}
-        onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-        onKeyDown={e => { if (e.key === 'Enter') handleAdd(); if (e.key === 'Escape') onCancel(); }}
-        placeholder="Task title…"
-        className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/30 placeholder-gray-400"/>
-      <textarea
-        value={form.description}
-        onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-        placeholder="Description (optional)"
-        rows={2}
-        className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/30 resize-none placeholder-gray-400"/>
-      <div className="flex gap-2">
-        <select
-          value={form.priority}
-          onChange={e => setForm(f => ({ ...f, priority: e.target.value }))}
-          className="flex-1 px-2.5 py-1.5 text-xs border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none">
-          <option value="high">🔴 High</option>
-          <option value="medium">🟡 Medium</option>
-          <option value="low">⚪ Low</option>
-        </select>
-        <input
-          type="date"
-          value={form.due_date}
-          onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))}
-          className="flex-1 px-2.5 py-1.5 text-xs border border-gray-200 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none"/>
-      </div>
-
-      {/* ── Assign to ── */}
-      <div>
-        <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1.5">Assign to</p>
-        <div className="flex gap-1.5">
-          <button
-            type="button"
-            onClick={() => setAssignMode('all')}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-semibold border transition
-              ${assignMode === 'all'
-                ? 'bg-blue-600 border-blue-600 text-white'
-                : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
-            <Users size={11}/> All Staff
-          </button>
-          <button
-            type="button"
-            onClick={() => setAssignMode('specific')}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-semibold border transition
-              ${assignMode === 'specific'
-                ? 'bg-indigo-600 border-indigo-600 text-white'
-                : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
-            <UserCheck size={11}/> Specific
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md border border-gray-100 dark:border-gray-700">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800">
+          <h3 className="font-bold text-gray-800 dark:text-white">Add New Task</h3>
+          <button onClick={onCancel} className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors">
+            <X size={16}/>
           </button>
         </div>
+        <div className="p-6 space-y-3 overflow-y-auto max-h-[75vh]">
+          <input autoFocus value={form.title}
+            onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+            onKeyDown={e => { if (e.key === 'Enter') handleAdd(); if (e.key === 'Escape') onCancel(); }}
+            placeholder="Task title…"
+            className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/30 placeholder-gray-400"/>
+          <textarea value={form.description}
+            onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+            placeholder="Description (optional)" rows={2}
+            className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/30 resize-none placeholder-gray-400"/>
+          <div className="flex gap-2">
+            <select value={form.priority} onChange={e => setForm(f => ({ ...f, priority: e.target.value }))}
+              className="flex-1 px-2.5 py-2 text-sm border border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-xl focus:outline-none">
+              <option value="high">🔴 High</option>
+              <option value="medium">🟡 Medium</option>
+              <option value="low">⚪ Low</option>
+            </select>
+            <input type="date" value={form.due_date}
+              onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))}
+              className="flex-1 px-2.5 py-2 text-sm border border-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-xl focus:outline-none"/>
+          </div>
 
-        {/* Staff picker */}
-        {assignMode === 'specific' && (
-          <div className="mt-2 border border-gray-200 dark:border-gray-600 rounded-lg overflow-hidden">
-            <div className="relative">
-              <input
-                value={staffSearch}
-                onChange={e => setStaffSearch(e.target.value)}
-                placeholder="Search staff…"
-                className="w-full pl-7 pr-3 py-1.5 text-xs bg-gray-50 dark:bg-gray-700 dark:text-white focus:outline-none border-b border-gray-200 dark:border-gray-600"/>
-              <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"/>
-            </div>
-            <div className="max-h-[120px] overflow-y-auto">
-              {filteredStaff.length === 0 ? (
-                <p className="text-center text-xs text-gray-400 py-3">No staff found</p>
-              ) : filteredStaff.map(s => (
-                <label key={s.id}
-                  className="flex items-center gap-2 px-2.5 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={assignedTo.includes(s.id)}
-                    onChange={() => toggleUser(s.id)}
-                    className="w-3 h-3 accent-indigo-600"/>
-                  <div className="w-5 h-5 rounded-full bg-indigo-500 flex items-center justify-center text-white text-[9px] font-black shrink-0">
-                    {(s.full_name || s.username || '?')[0].toUpperCase()}
-                  </div>
-                  <span className="text-xs text-gray-700 dark:text-gray-300 truncate">
-                    {s.full_name || s.username}
-                  </span>
-                </label>
+          {/* Assign to */}
+          <div>
+            <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1.5">Assign to</p>
+            <div className="flex gap-1.5">
+              {[['all', <Users size={11}/>, 'All Staff', 'bg-blue-600 border-blue-600'],
+                ['specific', <UserCheck size={11}/>, 'Specific', 'bg-indigo-600 border-indigo-600']].map(([mode, icon, label, activeCls]) => (
+                <button key={mode} type="button" onClick={() => setAssignMode(mode)}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-semibold border transition ${
+                    assignMode === mode ? `${activeCls} text-white` : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
+                  }`}>
+                  {icon}{label}
+                </button>
               ))}
             </div>
-            {assignedTo.length > 0 && (
-              <div className="px-2.5 py-1.5 bg-indigo-50 dark:bg-indigo-900/20 border-t border-gray-200 dark:border-gray-600">
-                <p className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold">
-                  {assignedTo.length} person{assignedTo.length > 1 ? 's' : ''} selected
-                </p>
+            {assignMode === 'specific' && (
+              <div className="mt-2 border border-gray-200 dark:border-gray-600 rounded-xl overflow-hidden">
+                <div className="relative">
+                  <input value={staffSearch} onChange={e => setStaffSearch(e.target.value)}
+                    placeholder="Search staff…"
+                    className="w-full pl-3 pr-3 py-1.5 text-xs bg-gray-50 dark:bg-gray-800 dark:text-white focus:outline-none border-b border-gray-200 dark:border-gray-600"/>
+                </div>
+                <div className="max-h-[120px] overflow-y-auto">
+                  {filteredStaff.map(s => (
+                    <label key={s.id} className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={assignedTo.includes(s.id)} onChange={() => toggleUser(s.id)}
+                        className="w-3 h-3 accent-indigo-600"/>
+                      <div className="w-5 h-5 rounded-full bg-indigo-500 flex items-center justify-center text-white text-[9px] font-black shrink-0">
+                        {(s.full_name || s.username || '?')[0].toUpperCase()}
+                      </div>
+                      <span className="text-xs text-gray-700 dark:text-gray-300 truncate">{s.full_name || s.username}</span>
+                    </label>
+                  ))}
+                </div>
+                {assignedTo.length > 0 && (
+                  <div className="px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/20 border-t border-gray-200 dark:border-gray-600">
+                    <p className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold">
+                      {assignedTo.length} person{assignedTo.length > 1 ? 's' : ''} selected
+                    </p>
+                  </div>
+                )}
               </div>
             )}
           </div>
-        )}
-      </div>
 
-      <div className="flex gap-2 pt-0.5">
-        <button onClick={onCancel}
-          className="flex-1 py-1.5 text-xs border border-gray-200 dark:border-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition font-medium">
-          Cancel
-        </button>
-        <button onClick={handleAdd}
-          disabled={saving || !form.title.trim() || (assignMode === 'specific' && assignedTo.length === 0)}
-          className="flex-1 py-1.5 text-xs font-bold text-white rounded-lg transition disabled:opacity-40 flex items-center justify-center gap-1"
-          style={{ background: 'linear-gradient(135deg,#1E3A5F,#2563eb)' }}>
-          {saving ? <Loader2 size={12} className="animate-spin"/> : <Plus size={12}/>}
-          Add Task
-        </button>
+          <div className="flex gap-2 pt-1">
+            <button onClick={onCancel}
+              className="flex-1 py-2 text-sm border border-gray-200 dark:border-gray-600 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition font-medium">
+              Cancel
+            </button>
+            <button onClick={handleAdd}
+              disabled={saving || !form.title.trim() || (assignMode === 'specific' && assignedTo.length === 0)}
+              className="flex-1 py-2 text-sm font-bold text-white rounded-xl transition disabled:opacity-40 flex items-center justify-center gap-1.5"
+              style={{ background: 'linear-gradient(135deg,#1E3A5F,#2563eb)' }}>
+              {saving ? <Loader2 size={14} className="animate-spin"/> : <Plus size={14}/>}
+              Add Task
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
-// ── Todo Card ─────────────────────────────────────────────────────────────────
-function TodoCard({ todo, onDelete, onDragStart, isDragging, columns }) {
-  const pm      = PRIORITY_META[todo.priority] || PRIORITY_META.medium;
-  const [menu,  setMenu] = useState(false);
-  const menuRef = useRef();
-
-  // Close menu on outside click
-  useEffect(() => {
-    if (!menu) return;
-    const handler = (e) => {
-      if (menuRef.current && !menuRef.current.contains(e.target)) setMenu(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [menu]);
-
-  const handleMoveToColumn = async (colKey) => {
-    setMenu(false);
-    await todosApi.update(todo.id, { status: colKey });
-  };
-
+// ── Task Card ──────────────────────────────────────────────────────────────────
+function TaskCard({ todo, onDelete }) {
+  const pm = PRIORITY_META[todo.priority] || PRIORITY_META.medium;
   return (
-    <div
-      draggable
-      onDragStart={e => onDragStart(e, todo)}
-      className={`group bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-all duration-200 p-3.5 cursor-grab active:cursor-grabbing select-none ${
-        isDragging ? 'opacity-50 rotate-1 scale-105 shadow-xl' : ''
-      }`}>
-
-      {/* Card header */}
-      <div className="flex items-start justify-between gap-2 mb-2">
-        <p className="font-bold text-gray-800 dark:text-white text-sm leading-snug flex-1">{todo.title}</p>
-        <div className="relative shrink-0" ref={menuRef}>
-          <button
-            onClick={e => { e.stopPropagation(); setMenu(m => !m); }}
-            className="w-6 h-6 rounded-md flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all">
-            <MoreHorizontal size={13} className="text-gray-400"/>
-          </button>
-          {menu && (
-            <div className="absolute right-0 top-7 z-20 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl overflow-hidden min-w-[150px]">
-              <p className="px-3 pt-2.5 pb-1 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Move to</p>
-              {columns.filter(c => c.key !== todo.status).map(col => (
-                <button key={col.key} onClick={() => handleMoveToColumn(col.key)}
-                  className="w-full text-left px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 transition-colors">
-                  <span className="w-2 h-2 rounded-full" style={{ background: col.dotColor }}/>
-                  {col.label}
-                </button>
-              ))}
-              <div className="border-t border-gray-100 dark:border-gray-700 mt-1"/>
-              <button onClick={() => { setMenu(false); onDelete(todo.id); }}
-                className="w-full text-left px-3 py-2 text-xs font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2 transition-colors">
-                <Trash2 size={11}/> Delete
-              </button>
-            </div>
+    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-all duration-200 p-4">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1 min-w-0">
+          <p className="font-bold text-gray-800 dark:text-white text-sm leading-snug">{todo.title}</p>
+          {todo.description && (
+            <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed mt-1 line-clamp-2">{todo.description}</p>
           )}
         </div>
+        <button onClick={() => onDelete(todo.id)}
+          className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors shrink-0">
+          <Trash2 size={14}/>
+        </button>
       </div>
 
-      {/* Description */}
-      {todo.description && (
-        <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed mb-2.5 line-clamp-2">{todo.description}</p>
-      )}
-
-      {/* Due date */}
-      {todo.due_date && (
-        <div className="flex items-center gap-1.5 mb-2.5">
-          <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wide">Due Date</span>
-          <span className="text-[11px] font-semibold text-gray-600 dark:text-gray-300">{fmtDate(todo.due_date)}</span>
-        </div>
-      )}
-
-      {/* Assignment badge */}
-      {!todo.assigned_to_all && todo.assigned_to?.length > 0 && (
-        <div className="flex items-center gap-1 mb-2">
-          <UserCheck size={10} className="text-indigo-400 shrink-0"/>
-          <span className="text-[10px] text-indigo-500 dark:text-indigo-400 font-semibold">
-            {todo.assigned_to.length} assigned
-          </span>
-        </div>
-      )}
-
-      {/* Footer */}
-      <div className="flex items-center justify-between mt-1">
+      <div className="flex items-center gap-2 flex-wrap mt-3">
         <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${pm.cls}`}>
           <span className={`w-1.5 h-1.5 rounded-full ${pm.dot}`}/>
           {pm.label}
         </span>
-        <div className="flex items-center gap-1.5">
-          {todo.assigned_to_all ? (
-            <span className="text-[9px] text-gray-400 dark:text-gray-500 font-medium flex items-center gap-0.5">
-              <Users size={9}/> All
-            </span>
-          ) : null}
-          {todo.completion_count > 0 && (
-            <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-sm">
-              <span className="text-[8px] font-black text-white">{todo.completion_count}</span>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Kanban Column ─────────────────────────────────────────────────────────────
-function KanbanColumn({ col, todos, onDelete, onDragStart, onDragOver, onDrop, isDragOver, draggingId, weekStart, onReload, columns, staffList }) {
-  const [showAdd, setShowAdd] = useState(false);
-
-  return (
-    <div
-      className="flex flex-col min-w-[260px] w-[260px] shrink-0 sm:min-w-0 sm:w-auto sm:flex-1"
-      onDragOver={e => onDragOver(e, col.key)}
-      onDrop={e => onDrop(e, col.key)}
-      onDragLeave={() => onDragOver(null, null)}>
-
-      {/* Column header */}
-      <div className={`flex items-center justify-between mb-3 pb-3 border-b-2 ${col.headerCls} border-b-transparent`}>
-        <div className="flex items-center gap-2">
-          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold ${col.badgeCls}`}>
-            {col.label}
+        {todo.due_date && (
+          <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium flex items-center gap-1">
+            <Calendar size={9}/>{fmtDate(todo.due_date)}
           </span>
-          <span className="w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-[10px] font-black flex items-center justify-center">
-            {todos.length}
+        )}
+        {!todo.assigned_to_all && todo.assigned_to?.length > 0 ? (
+          <span className="text-[10px] text-indigo-500 dark:text-indigo-400 font-semibold flex items-center gap-1">
+            <UserCheck size={9}/>{todo.assigned_to.length} assigned
           </span>
-        </div>
-        <button
-          onClick={() => setShowAdd(s => !s)}
-          className="w-7 h-7 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 flex items-center justify-center transition-colors text-gray-500 dark:text-gray-400"
-          title={`Add task to ${col.label}`}>
-          <Plus size={14}/>
-        </button>
-      </div>
-
-      {/* Add form */}
-      {showAdd && (
-        <AddTaskForm
-          colKey={col.key}
-          weekStart={weekStart}
-          onDone={() => { setShowAdd(false); onReload(); }}
-          onCancel={() => setShowAdd(false)}
-          staffList={staffList}
-        />
-      )}
-
-      {/* Drop zone + cards */}
-      <div className={`flex-1 space-y-2.5 min-h-[120px] rounded-xl transition-all duration-200 ${
-        isDragOver ? 'bg-blue-50 dark:bg-blue-900/10 ring-2 ring-blue-300 dark:ring-blue-700 ring-dashed p-1' : ''
-      }`}>
-        {todos.length === 0 && !showAdd ? (
-          <div className="flex flex-col items-center justify-center py-10 text-center">
-            <div className="w-10 h-10 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-2">
-              <Circle size={18} className="text-gray-300 dark:text-gray-600"/>
-            </div>
-            <p className="text-xs text-gray-400 dark:text-gray-500 font-medium">{col.emptyMsg}</p>
-          </div>
         ) : (
-          todos.map(t => (
-            <TodoCard
-              key={t.id}
-              todo={t}
-              onDelete={onDelete}
-              onDragStart={onDragStart}
-              isDragging={draggingId === t.id}
-              columns={columns}
-            />
-          ))
+          <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium flex items-center gap-1">
+            <Users size={9}/>All staff
+          </span>
+        )}
+        {todo.completion_count > 0 && (
+          <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+            <CheckCircle2 size={9}/>{todo.completion_count} completed
+          </span>
         )}
       </div>
     </div>
@@ -376,9 +202,8 @@ export default function AdminTodos() {
   const [weekOffset, setWeekOffset] = useState(0);
   const [search,     setSearch]     = useState('');
   const [priFilter,  setPriFilter]  = useState('all');
-  const [draggingId, setDraggingId] = useState(null);
-  const [dragOverCol,setDragOverCol]= useState(null);
   const [loading,    setLoading]    = useState(true);
+  const [showAdd,    setShowAdd]    = useState(false);
 
   const weekStart = getWeekStart(weekOffset);
 
@@ -390,7 +215,6 @@ export default function AdminTodos() {
   };
   useEffect(() => { load(); }, [weekStart]);
 
-  // Fetch staff list once for the assignment picker
   useEffect(() => {
     usersApi.staffList()
       .then(r => setStaffList(r.data?.results || r.data || []))
@@ -402,18 +226,11 @@ export default function AdminTodos() {
     : weekOffset === -1 ? 'Last Week'
     : `Week of ${fmtDate(weekStart)}`;
 
-  // Filtered list
   const filtered = todos.filter(t => {
     const matchPri    = priFilter === 'all' || t.priority === priFilter;
     const matchSearch = !search || t.title.toLowerCase().includes(search.toLowerCase());
     return matchPri && matchSearch;
   });
-
-  // Group by status
-  const grouped = COLUMNS.reduce((acc, col) => {
-    acc[col.key] = filtered.filter(t => (t.status || 'todo') === col.key);
-    return acc;
-  }, {});
 
   const handleDelete = async (id) => {
     const ok = await confirm({
@@ -427,55 +244,27 @@ export default function AdminTodos() {
     load();
   };
 
-  // ── Drag & Drop ─────────────────────────────────────────────────────────
-  const handleDragStart = (e, todo) => {
-    setDraggingId(todo.id);
-    e.dataTransfer.effectAllowed = 'move';
-  };
-
-  const handleDragOver = (e, colKey) => {
-    if (e) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }
-    setDragOverCol(colKey);
-  };
-
-  const handleDrop = async (e, colKey) => {
-    e.preventDefault();
-    const id = draggingId;
-    setDraggingId(null);
-    setDragOverCol(null);
-    if (!id) return;
-    const todo = todos.find(t => t.id === id);
-    if (!todo || (todo.status || 'todo') === colKey) return;
-    // Optimistic update
-    setTodos(prev => prev.map(t => t.id === id ? { ...t, status: colKey } : t));
-    try {
-      await todosApi.update(id, { status: colKey });
-    } catch { load(); }
-  };
-
-  const totalDone = todos.filter(t => (t.status || 'todo') === 'done').length;
-
-  /* ═══════════════════════════════════════════════════════════════════════════ */
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col gap-5">
 
       {/* ── Page header ── */}
-      <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-black text-gray-800 dark:text-white tracking-tight">Task Board</h1>
-          <p className="text-gray-400 dark:text-gray-500 text-sm mt-0.5">Weekly tasks assigned to all staff</p>
+          <p className="text-gray-400 dark:text-gray-500 text-sm mt-0.5">
+            {weekLabel} · {filtered.length} task{filtered.length !== 1 ? 's' : ''}
+          </p>
         </div>
-        <div className="flex items-center gap-2">
-          {totalDone > 0 && (
-            <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 px-3 py-1.5 rounded-xl">
-              <CheckCircle2 size={12}/>{totalDone} done this week
-            </span>
-          )}
-        </div>
+        {/* Single Add button */}
+        <button onClick={() => setShowAdd(true)}
+          className="flex items-center gap-2 px-4 py-2.5 text-white text-sm font-bold rounded-xl shadow-md transition-all hover:shadow-lg"
+          style={{ background: 'linear-gradient(135deg,#1E3A5F,#2563eb)' }}>
+          <Plus size={16}/> Add Task
+        </button>
       </div>
 
       {/* ── Toolbar ── */}
-      <div className="flex items-center gap-3 mb-5 flex-wrap">
+      <div className="flex items-center gap-3 flex-wrap">
         {/* Week nav */}
         <div className="flex items-center gap-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl px-2 py-1.5 shadow-sm">
           <button onClick={() => setWeekOffset(w => w - 1)}
@@ -498,7 +287,7 @@ export default function AdminTodos() {
           <span className="text-gray-400 mr-1">Priority:</span>
           <select value={priFilter} onChange={e => setPriFilter(e.target.value)}
             className="bg-transparent focus:outline-none font-bold text-gray-700 dark:text-white cursor-pointer">
-            <option value="all">All Tasks</option>
+            <option value="all">All</option>
             <option value="high">High</option>
             <option value="medium">Medium</option>
             <option value="low">Low</option>
@@ -519,32 +308,35 @@ export default function AdminTodos() {
         </div>
       </div>
 
-      {/* ── Kanban board ── */}
+      {/* ── Task list ── */}
       {loading ? (
-        <div className="flex items-center justify-center flex-1 py-24">
+        <div className="flex items-center justify-center py-24">
           <Loader2 size={24} className="animate-spin text-blue-500"/>
         </div>
+      ) : filtered.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <div className="w-14 h-14 rounded-2xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-3">
+            <Circle size={24} className="text-gray-300 dark:text-gray-600"/>
+          </div>
+          <p className="text-sm font-semibold text-gray-500 dark:text-gray-400">No tasks yet</p>
+          <p className="text-xs text-gray-400 dark:text-gray-600 mt-1">Click "Add Task" to create the first task for this week</p>
+        </div>
       ) : (
-        <div className="flex gap-4 overflow-x-auto pb-4 flex-1"
-          onDragEnd={() => { setDraggingId(null); setDragOverCol(null); }}>
-          {COLUMNS.map(col => (
-            <KanbanColumn
-              key={col.key}
-              col={col}
-              todos={grouped[col.key] || []}
-              onDelete={handleDelete}
-              onDragStart={handleDragStart}
-              onDragOver={handleDragOver}
-              onDrop={handleDrop}
-              isDragOver={dragOverCol === col.key}
-              draggingId={draggingId}
-              weekStart={weekStart}
-              onReload={load}
-              columns={COLUMNS}
-              staffList={staffList}
-            />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {filtered.map(t => (
+            <TaskCard key={t.id} todo={t} onDelete={handleDelete}/>
           ))}
         </div>
+      )}
+
+      {/* ── Add task modal ── */}
+      {showAdd && (
+        <AddTaskModal
+          weekStart={weekStart}
+          staffList={staffList}
+          onDone={() => { setShowAdd(false); load(); }}
+          onCancel={() => setShowAdd(false)}
+        />
       )}
     </div>
   );

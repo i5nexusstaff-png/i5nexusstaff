@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     'notifications',
     'offers',
     'banners',
+    'toolkit',
 ]
 
 MIDDLEWARE = [

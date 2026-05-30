@@ -10,7 +10,7 @@ import {
   LayoutDashboard, Users, FileText, MessageSquare, Clock,
   CheckSquare, BookOpen, FolderKanban, Trophy, LogOut,
   CalendarCheck, ChevronLeft, ChevronRight,
-  Menu, X, Tag, Image, Sun, Moon, MoreHorizontal, Settings,
+  Menu, X, Tag, Image, Sun, Moon, MoreHorizontal, Settings, Wrench,
 } from 'lucide-react';
 
 // ─── Nav definitions ──────────────────────────────────────────────────────────
@@ -22,7 +22,8 @@ const superAdminNav = [
   { to: '/superadmin/projects',                icon: FolderKanban,    label: 'Projects' },
   { to: '/superadmin/tutorials',               icon: BookOpen,        label: 'Tutorials' },
   { to: '/superadmin/reports',                 icon: FileText,        label: 'Reports' },
-  { to: '/superadmin/settings',                icon: Settings,        label: 'Settings' },
+  { to: '/superadmin/toolkit',                 icon: Wrench,          label: 'Toolkit' },
+  { to: '/superadmin/settings',               icon: Settings,        label: 'Settings' },
 ];
 
 const adminNav = [
@@ -37,6 +38,7 @@ const adminNav = [
   { to: '/admin/achievements',          icon: Trophy,          label: 'Achievements' },
   { to: '/admin/offers',                icon: Tag,             label: 'Offers' },
   { to: '/admin/banners',               icon: Image,           label: 'Banners' },
+  { to: '/admin/toolkit',               icon: Wrench,          label: 'Toolkit' },
   { to: '/admin/settings',              icon: Settings,        label: 'Settings' },
 ];
 
@@ -50,6 +52,7 @@ const staffNav = [
   { to: '/staff/feedback',                 icon: MessageSquare,   label: 'Feedback' },
   { to: '/staff/tutorials',                icon: BookOpen,        label: 'Tutorials' },
   { to: '/staff/leaves',                   icon: CalendarCheck,   label: 'Request Leave' },
+  { to: '/staff/toolkit',                  icon: Wrench,          label: 'Toolkit' },
   { to: '/staff/settings',                 icon: Settings,        label: 'Settings' },
   // Offers removed — displayed as OfferBanner strip in the top bar instead
 ];

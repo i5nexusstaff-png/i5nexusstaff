@@ -194,6 +194,13 @@ export const teamMembersApi = {
   update: (id, data) => api.patch(`/team-members/${id}/`, data),
   delete: (id)     => api.delete(`/team-members/${id}/`),
 };
+export const toolkitApi = {
+  list:   (params) => api.get('/toolkit/', { params }),
+  get:    (id)     => api.get(`/toolkit/${id}/`),
+  create: (fd)     => api.post('/toolkit/', fd, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  update: (id, fd) => api.patch(`/toolkit/${id}/`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  delete: (id)     => api.delete(`/toolkit/${id}/`),
+};
 export const leavesApi = {
   list: (params) => api.get('/leaves/', { params }),
   myList: () => api.get('/leaves/my/'),
